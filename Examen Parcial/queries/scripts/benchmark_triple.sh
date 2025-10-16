@@ -10,7 +10,7 @@ export LC_NUMERIC="C"
 # =========================================================
 
 if [ $# -lt 3 ]; then
-  echo "❌ Uso: $0 <archivo_jar> <clase_principal> <nombre_prueba>"
+  echo "[!] Uso: $0 <archivo_jar> <clase_principal> <nombre_prueba>"
   exit 1
 fi
 
@@ -34,7 +34,7 @@ fi
 for dir in $OUTPUT1 $OUTPUT2 $OUTPUT3; do
   hadoop fs -test -d $dir
   if [ $? -eq 0 ]; then
-    echo "⚠️  Eliminando $dir anterior..."
+    echo "[!]  Eliminando $dir anterior..."
     hadoop fs -rm -r -f $dir
   fi
 done
@@ -90,5 +90,5 @@ echo " - Memoria Promedio: ${AVG_MEM_USED}MB"
 echo " - Logs: $MPSTAT_LOG"
 
 # Mostrar salida final
-#echo "📄 Mostrando resultados de /output_parcial3:"
+#echo "[!] Mostrando resultados de /output_parcial3:"
 #hadoop fs -cat /output_parcial3/part-* | head -n 10
