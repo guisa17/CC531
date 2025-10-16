@@ -1,94 +1,97 @@
 #!/bin/bash
 export LC_NUMERIC="C"
 # =========================================================
-# Benchmark Hadoop - Consultas Triples (3 MapReduce)
+# Benchmark Hadoop - Consultas Encadenadas (3 MapReduce)
 # =========================================================
 # Uso:
-#   ./benchmark_triple.sh <archivo_jar> <clase_principal> <nombre_prueba>
+#   ./benchmark_triple.sh <clase_principal> <nombre_prueba>
 # Ejemplo:
-#   ./benchmark_triple.sh PARCIALMACRO-1.0-SNAPSHOT.jar Consulta4.Consulta4Driver PromedioTipoEntidadSexo
+#   ./benchmark_triple.sh Consulta4.Consulta4Driver Consulta4_Encadenada
 # =========================================================
 
-if [ $# -lt 3 ]; then
-  echo "[!] Uso: $0 <archivo_jar> <clase_principal> <nombre_prueba>"
+if [ $# -lt 2 ]; then
+  echo "Uso: $0 <clase_principal> <nombre_prueba>"
+  echo "Ejemplo: $0 Consulta4.Consulta4Driver Consulta4"
   exit 1
 fi
 
-JAR_FILE=$1
-MAIN_CLASS=$2
-TEST_NAME=$3
+MAIN_CLASS=$1
+TEST_NAME=$2
 
-INPUT_DIR="/input_parcial"
-OUTPUT1="/output_parcial1"
-OUTPUT2="/output_parcial2"
-OUTPUT3="/output_parcial3"
-
+# Configuración de rutas
+JAR_FILE="../jars/consultas-jar.jar"
+INPUT_DIR="/user/hadoop/concytec/datos"
+OUTPUT_DIR="/user/hadoop/concytec/resultados/${TEST_NAME,,}"
 LOG_FILE="benchmark_results_triple.csv"
 
 # Crear cabecera si no existe
 if [ ! -f "$LOG_FILE" ]; then
-  echo "Fecha,Prueba,Duración(s),UsoCPU(%),MemoriaPromedio(MB)" > $LOG_FILE
+  echo "Fecha,Prueba,Clase,Duración_Total(s),MR1(s),MR2(s),MR3(s)" > $LOG_FILE
 fi
 
-# Eliminar salidas previas
-for dir in $OUTPUT1 $OUTPUT2 $OUTPUT3; do
-  hadoop fs -test -d $dir
-  if [ $? -eq 0 ]; then
-    echo "[!]  Eliminando $dir anterior..."
-    hadoop fs -rm -r -f $dir
-  fi
-done
+# Verificar que existe el JAR
+if [ ! -f "$JAR_FILE" ]; then
+  echo "ERROR: No se encuentra el archivo JAR: $JAR_FILE"
+  exit 1
+fi
 
-# Monitoreo de CPU/memoria
-MPSTAT_LOG="cpu_mem_${TEST_NAME}.log"
-(
-  echo "timestamp,cpu_idle,mem_used(MB),mem_free(MB)"
-  while true; do
-    timestamp=$(date '+%H:%M:%S')
-    # Obtener uso de CPU y memoria en formato limpio
-    cpu_idle=$(mpstat 1 1 | awk '/Average/ && $3 !~ /CPU/ {print $12}' | tr -d '[:space:]')
-    if [ -z "$cpu_idle" ]; then cpu_idle=0; fi
-    mem_line=$(free -m | awk '/Mem:/ {print $3","$4}')
-    mem_used=$(echo "$mem_line" | cut -d',' -f1)
-    mem_free=$(echo "$mem_line" | cut -d',' -f2)
-
-# Registrar los valores correctamente delimitados
-echo "$timestamp,$cpu_idle,$mem_used,$mem_free"
-
-    sleep 2
-  done
-) > "$MPSTAT_LOG" &
-MONITOR_PID=$!
+# Eliminar salida previa si existe
+echo "Verificando directorio de salida..."
+hdfs dfs -test -d $OUTPUT_DIR
+if [ $? -eq 0 ]; then
+  echo "Eliminando $OUTPUT_DIR anterior..."
+  hdfs dfs -rm -r -f $OUTPUT_DIR
+fi
 
 # Ejecución y cronometraje
-echo "Ejecutando $TEST_NAME..."
+echo "========================================="
+echo "Ejecutando: $TEST_NAME (Consulta Encadenada)"
+echo "Clase: $MAIN_CLASS"
+echo "JAR: $JAR_FILE"
+echo "Input: $INPUT_DIR"
+echo "Output: $OUTPUT_DIR"
+echo "========================================="
+echo ""
+echo "Esta consulta ejecutará 3 MapReduce encadenados..."
+echo ""
+
 START=$(date +%s.%N)
 
-hadoop jar $JAR_FILE $MAIN_CLASS $INPUT_DIR $OUTPUT1 $OUTPUT2 $OUTPUT3
+hadoop jar $JAR_FILE $MAIN_CLASS $INPUT_DIR $OUTPUT_DIR
 JOB_STATUS=$?
 
 END=$(date +%s.%N)
 DURATION=$(echo "scale=2; $END - $START" | bc)
 
-kill $MONITOR_PID >/dev/null 2>&1
-
-# Cálculo de promedios
-AVG_CPU_IDLE=$(awk -F',' 'NR>1 {sum+=$2;count++} END{if(count>0) print sum/count; else print 0}' $MPSTAT_LOG)
-AVG_MEM_USED=$(awk -F',' 'NR>1 {sum+=$3;count++} END{if(count>0) print sum/count; else print 0}' $MPSTAT_LOG)
-CPU_USAGE=$(echo "scale=2; 100 - $AVG_CPU_IDLE" | bc)
-
 if [ $JOB_STATUS -eq 0 ]; then
-  echo " $TEST_NAME completado en ${DURATION}s."
-  echo "$(date '+%Y-%m-%d %H:%M:%S'),$TEST_NAME,$DURATION,$CPU_USAGE,$AVG_MEM_USED" >> $LOG_FILE
+  echo ""
+  echo "========================================="
+  echo "[OK] $TEST_NAME completado exitosamente"
+  echo "Duración total: ${DURATION}s"
+  echo "========================================="
+  echo "$(date '+%Y-%m-%d %H:%M:%S'),$TEST_NAME,$MAIN_CLASS,$DURATION,N/A,N/A,N/A" >> $LOG_FILE
+  
+  # Mostrar resultados finales
+  echo ""
+  echo "Resultados guardados en HDFS:"
+  hdfs dfs -ls -R $OUTPUT_DIR
+  echo ""
+  echo "Resultado final (después de los 3 MR):"
+  hdfs dfs -cat $OUTPUT_DIR/part-* 2>/dev/null | head -n 20
+  
+  # Si hay directorios intermedios, mostrarlos
+  echo ""
+  echo "Directorios intermedios:"
+  hdfs dfs -ls $OUTPUT_DIR/
 else
-  echo "Error durante la ejecución de $TEST_NAME."
+  echo ""
+  echo "========================================="
+  echo "[ERROR] Error durante la ejecución de $TEST_NAME"
+  echo "========================================="
+  exit 1
 fi
 
-echo " - Resultados guardados en $LOG_FILE"
-echo " - CPU Promedio: $CPU_USAGE%"
-echo " - Memoria Promedio: ${AVG_MEM_USED}MB"
-echo " - Logs: $MPSTAT_LOG"
-
-# Mostrar salida final
-#echo "[!] Mostrando resultados de /output_parcial3:"
-#hadoop fs -cat /output_parcial3/part-* | head -n 10
+echo ""
+echo "Duración total de los 3 MapReduce: ${DURATION}s"
+echo "Resultados guardados en: $LOG_FILE"
+echo ""
