@@ -1,0 +1,14 @@
+======================================================================
+CONSULTA 7: Metricas Estadisticas de un Campo Numerico
+======================================================================
+
+Campo analizado: Edad (derivada de CIUDADANO_FECHA_NACIMIENTO)
+Total de registros: 329657
+
+METRICAS ESTADISTICAS:
+--------------------------------------------------
+Promedio:              28.43 aÃ±os
+Mediana:               23.00 aÃ±os
+Desviacion Estandar:   16.82
+Mayor (Maximo):        108 aÃ±os
+Menor (Minimo):        1 aÃ±os

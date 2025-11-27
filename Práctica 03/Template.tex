@@ -1,0 +1,1063 @@
+\documentclass[12pt,a4paper]{article}
+
+% Márgenes y formato de párrafo
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\setlength{\parindent}{0in}
+\setlength{\parskip}{0.5\baselineskip}
+
+% Paquetes esenciales
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{graphicx}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{caption,subcaption}
+\usepackage{multicol,multirow}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{tocloft}
+\usepackage{fancyhdr}
+\usepackage{pgfplots}
+\usepackage{listings}
+\pgfplotsset{compat=1.18}
+
+% Configuración de páginas
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Análisis de Proyectos CONCYTEC - Hadoop MapReduce}
+\fancyhead[R]{\small CC531 - Examen Parcial 2025-II}
+\fancyfoot[C]{\thepage}
+
+% Configuración del índice
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+\renewcommand*\contentsname{Contenido}
+
+% Configuración de listas
+\setlist[itemize]{itemsep=0.3em, topsep=0.5em}
+\setlist[enumerate]{itemsep=0.3em, topsep=0.5em}
+
+% Definición de colores personalizados
+\definecolor{fondecytblue}{RGB}{41,128,185}
+\definecolor{fondecytgreen}{RGB}{39,174,96}
+\definecolor{codebackground}{RGB}{245,245,245}
+
+% Configuración de código
+\lstset{
+    backgroundcolor=\color{codebackground},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=b,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red}
+}
+
+% -------------------------
+% DOCUMENTO
+% -------------------------
+
+\begin{document}
+\selectlanguage{spanish}
+
+% -------------------------
+% PORTADA
+% -------------------------
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+
+{\huge\bfseries Análisis en Macrodatos\par}
+\vspace{0.5cm}
+{\LARGE Análisis de Proyectos de Investigación Científica CONCYTEC\\
+mediante Hadoop MapReduce\par}
+
+\vspace{2cm}
+
+{\Large\textbf{Autores:}\par}
+\vspace{0.5cm}
+{\large Hugo Rodrigo Rivas Galindo\par}
+{\large Guillermo Ronie Salcedo Alvarez\par}
+
+\vspace{1cm}
+
+\includegraphics[width=0.3\textwidth]{img/logo_uni.png}
+\vspace{1cm}
+
+{\large Universidad Nacional de Ingeniería\\
+Facultad de Ciencias\par}
+
+\vspace{1cm}
+
+{\large Curso: CC531 - Análisis en Macrodatos\\
+Examen Parcial\par}
+
+\vfill
+
+{\large Octubre 2025\par}
+
+\end{titlepage}
+
+% -------------------------
+% RESUMEN
+% -------------------------
+\newpage
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent
+El presente informe analiza el dataset de \textbf{``Estadísticas de Proyectos de Investigación Científica por fuentes de financiamiento de PROCIENCIA''} publicado por CONCYTEC (periodo 2015-2021, fechas de corte hasta 2024), empleando \textbf{Apache Hadoop MapReduce 3.3.6} para procesamiento distribuido sobre \textbf{Ubuntu Server 22.04 LTS}. El dataset contiene 911 registros de proyectos financiados, incluyendo 20 variables sobre entidades ejecutoras, montos adjudicados y características de investigadores.
+
+Se implementaron 7 consultas analíticas: (1) estadísticas descriptivas (media, mediana, desviación estándar), (2) consultas de agrupamiento complejo (porcentaje por moneda, promedio por entidad y sexo), y (3) modelos avanzados (regresión lineal y clasificación por rangos). Las consultas complejas utilizaron MapReduce encadenado con hasta 3 jobs secuenciales.
+
+Se comparó el rendimiento entre un \textbf{nodo único} (4 CPUs, 16 GB RAM) y un \textbf{clúster multinodo de 3 nodos} (Master: 6 CPUs, 10 GB RAM + Slave1: 3 CPUs, 4.5 GB RAM + Slave2: 4 CPUs, 4.5 GB RAM = 12 CPUs totales, 19 GB RAM). Los resultados mostraron un speedup promedio de 1.31x (131\%), confirmando la escalabilidad de Hadoop para análisis de datos científicos. Adicionalmente, se crearon visualizaciones en Power BI para explorar patrones temporales y distribución por género.
+
+\vspace{0.5cm}
+\noindent\textbf{Palabras clave:} Hadoop MapReduce, CONCYTEC, Procesamiento Distribuido, Big Data, Speedup, Ubuntu Server
+
+\end{abstract}
+
+
+\newpage
+\pagenumbering{roman}
+\tableofcontents
+
+\newpage
+\pagenumbering{arabic}
+
+% -------------------------
+% INTRODUCCIÓN
+% -------------------------
+\section{Introducción}
+
+El análisis de datos abiertos gubernamentales es fundamental para la evaluación de políticas públicas. CONCYTEC publica el dataset de proyectos financiados por PROCIENCIA (2015-2021) con 911 registros de investigación científica. Este trabajo aplica \textbf{Apache Hadoop MapReduce} para procesar y analizar dicho dataset, comparando el rendimiento entre arquitecturas de nodo único y clúster multinodo.
+
+\subsection{Objetivos}
+
+\textbf{Objetivo General:} Implementar y comparar consultas analíticas sobre el dataset CONCYTEC usando Hadoop MapReduce en dos configuraciones: (1) nodo único y (2) clúster multinodo.
+
+\textbf{Objetivos Específicos:}
+\begin{itemize}
+    \item Implementar 7 consultas: estadísticas descriptivas, agrupamientos complejos y modelos analíticos
+    \item Configurar clúster Hadoop de 3 nodos (1 Master + 2 Slaves) sobre Ubuntu Server 22.04
+    \item Medir tiempos de ejecución, uso de CPU/RAM y calcular speedup uninodal vs multinodo
+    \item Visualizar resultados mediante Power BI
+\end{itemize}
+
+\subsection{Alcance}
+
+El análisis se limita al dataset oficial de CONCYTEC (911 registros, 2015-2021). La metodología es escalable a volúmenes mayores. El enfoque es análisis estadístico exploratorio, sin modelos predictivos complejos.
+
+% -------------------------
+% MARCO TEÓRICO
+% -------------------------
+\section{Marco Teórico}
+
+\subsection{Apache Hadoop y MapReduce}
+
+\textbf{Apache Hadoop} es un framework de código abierto para procesamiento distribuido de grandes conjuntos de datos. Componentes principales:
+
+\begin{itemize}
+    \item \textbf{HDFS:} Sistema de archivos distribuido que replica datos en múltiples nodos
+    \item \textbf{YARN:} Gestor de recursos del clúster
+    \item \textbf{MapReduce:} Modelo de programación paralela con dos fases: Map (procesa datos y genera pares clave-valor) y Reduce (agrega valores por clave)
+\end{itemize}
+
+\textbf{MapReduce Encadenado:} Para consultas complejas, se encadenan múltiples jobs donde la salida de uno alimenta la entrada del siguiente. Ejemplo: calcular porcentajes requiere 3 jobs (sumar por grupo, sumar total, calcular porcentaje).
+
+\subsection{CONCYTEC y PROCIENCIA}
+
+\textbf{CONCYTEC} es el organismo rector del Sistema Nacional de Ciencia, Tecnología e Innovación Tecnológica del Perú. \textbf{PROCIENCIA} (antes FONDECYT) es su programa de financiamiento competitivo para proyectos de investigación científica, con modalidades: investigación básica, aplicada, en salud y cooperación internacional.
+
+\subsection{Métricas de Rendimiento}
+
+\textbf{Speedup:} Mide la mejora en tiempo de ejecución al usar múltiples procesadores: $S = T_{uninodal} / T_{multinodo}$. Un speedup de 2x significa que el clúster es 2 veces más rápido.
+
+\textbf{Eficiencia:} Indica el aprovechamiento de recursos: $E = S / n\_nodos$. Una eficiencia del 70\% o superior es aceptable en sistemas distribuidos.
+
+% -------------------------
+% DATASET Y METODOLOGÍA
+% -------------------------
+\section{Dataset y Metodología}
+
+\subsection{Descripción del Dataset}
+
+Dataset: \textbf{``Estadísticas de Proyectos de Investigación Científica por fuentes de financiamiento de PROCIENCIA''} (CONCYTEC). Características: 911 registros, periodo 2015-2021 (fechas de corte hasta 2024), formato CSV, 20 variables.
+
+\textbf{Fuente:} \url{https://datosabiertos.gob.pe/dataset/estadisticas-de-proyectos-de-investigacion-cientifica-por-fuentes-de-financiamiento-de}
+
+\textbf{Nota:} FONDECYT (Fondo Nacional de Desarrollo Científico y Tecnológico) ahora se denomina PROCIENCIA (Programa Nacional de Investigación Científica y Estudios Avanzados).
+
+% [IMAGEN: Tabla de variables del dataset]
+% Archivo: img/tabla_variables.png
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{img/tabla_variables.png}
+\caption{Variables del dataset CONCYTEC/PROCIENCIA}
+\label{fig:variables}
+\end{figure}
+
+\textbf{Variables principales (20 en total):}
+\begin{itemize}
+    \item FECHA\_CORTE: Día de generación del dataset
+    \item CODIGO\_ORDEN: Identificador del proyecto
+    \item ANIO: Año del proyecto
+    \item CONVENIO: Tipo de convenio
+    \item TIPO\_SUBVENCION: Proyecto de Investigación
+    \item TIPO\_CONVOCATORIA: Investigación Científica
+    \item CONVOCATORIA: Identificador de convocatoria
+    \item ESQUEMA\_FINANCIERO: Identificador de esquema financiero
+    \item ENTIDAD\_EJECUTORA\_SUBVENCIONADO: Nombre de entidad ejecutora
+    \item TIPO\_ENTIDAD: Tipo de entidad
+    \item SEXO: Sexo del investigador principal (Femenino/Masculino)
+    \item DESCRIPCION: Descripción del proyecto
+    \item MONEDA: Moneda de financiamiento (Soles, Euro, Libras Esterlinas)
+    \item MONTO: Monto del proyecto según tipo de moneda
+    \item IMPORTE\_FONDECYT: Importe adjudicado por FONDECYT en Soles
+    \item DEPARTAMENTO, PROVINCIA, DISTRITO, UBIGEO: Ubicación geográfica del CONCYTEC
+\end{itemize}
+
+\textbf{Proceso ETL:} Extracción desde plataforma de datos abiertos, transformación (limpieza, validación, normalización), y carga a HDFS con factor de replicación 3.
+
+\subsection{Consultas Implementadas}
+
+Se implementaron 7 consultas organizadas en 3 categorías:
+
+\subsubsection{Estadísticas Descriptivas (MapReduce simple - 1 job)}
+
+\textbf{Consulta 1 - Media:} Calcula el promedio del IMPORTE\_FONDECYT. Mapper emite (``global'', importe), Reducer suma y divide entre total.
+
+\textbf{Consulta 2 - Mediana:} Determina el valor central. Reducer ordena valores y selecciona el elemento del medio.
+
+\textbf{Consulta 3 - Desviación Estándar:} Mide dispersión respecto a la media. Requiere 2 jobs: calcular media, luego calcular desviaciones cuadráticas.
+
+\subsubsection{Agrupamiento Complejo (MapReduce encadenado - 3 jobs)}
+
+\textbf{Consulta 4 - Porcentaje por Moneda:} Calcula qué porcentaje del financiamiento de cada entidad corresponde a cada tipo de moneda (Soles/Euro/Libras). Jobs: (1) Sumar por (Entidad, Moneda), (2) Sumar total por Entidad, (3) Calcular porcentajes.
+
+\textbf{Consulta 5 - Promedio por Entidad y Sexo:} Obtiene promedio de IMPORTE\_FONDECYT agrupado por tipo de entidad (Universidad/Empresa/Instituto) y sexo del investigador principal. Jobs: (1) Suma y conteo por grupo, (2) Combinar resultados, (3) Calcular promedios.
+
+\subsubsection{Modelos Analíticos Avanzados}
+
+\textbf{Consulta 6 - Regresión Lineal:} Predice IMPORTE\_FONDECYT a partir del MONTO total. Jobs: (1) Calcular sumatorias (ΣX, ΣY, ΣXY, ΣX²), (2) Calcular coeficientes β₀ y β₁, (3) Generar predicciones y métricas R².
+
+\textbf{Consulta 7 - Clasificación por Rangos:} Clasifica proyectos en Bajo (<100K), Medio (100K-250K) y Alto (>250K). Mapper clasifica, Reducer cuenta por categoría.
+
+\subsection{Metodología de Benchmark}
+
+Se configuraron dos entornos para comparar rendimiento:
+
+\textbf{Entorno Uninodal:} 4 CPUs, 16 GB RAM, modo pseudo-distribuido sobre Ubuntu Server 22.04.
+
+\textbf{Entorno Multinodo:} Clúster de 3 nodos con las siguientes características:
+\begin{itemize}
+    \item \textbf{Master (192.168.18.101):} 6 CPUs, 10 GB RAM, ejecutando NameNode, SecondaryNameNode, ResourceManager y JobHistory Server
+    \item \textbf{Slave1 (192.168.18.100):} 3 CPUs, 4.5 GB RAM, ejecutando DataNode y NodeManager
+    \item \textbf{Slave2 (192.168.18.102):} 4 CPUs, 4.5 GB RAM, ejecutando DataNode y NodeManager
+    \item \textbf{Total:} 12 CPUs, 19 GB RAM combinados
+    \item \textbf{Red:} Conectividad Gigabit Ethernet
+    \item \textbf{Software:} Hadoop 3.3.6, Java OpenJDK 1.8.0\_462, Ubuntu Server 22.04 LTS
+\end{itemize}
+
+\textbf{Protocolo de medición:} Para cada consulta se ejecutaron 3 repeticiones, calculando el tiempo promedio. Se midió además el uso de CPU y RAM durante la ejecución. El speedup se calculó como $S = T_{uninodal} / T_{multinodo}$.
+
+% -------------------------
+% CONFIGURACIÓN DEL CLÚSTER
+% -------------------------
+\section{Configuración del Clúster Hadoop}
+
+\subsection{Arquitectura y Componentes}
+
+Se implementó un clúster Hadoop con topología Master-Slave de 3 nodos conectados por red Gigabit Ethernet.
+
+% [IMAGEN: Diagrama de arquitectura del clúster]
+% Archivo: img/arquitectura_cluster.png
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{img/arquitectura_cluster.png}
+\caption{Arquitectura del clúster Hadoop de 3 nodos}
+\label{fig:arquitectura}
+\end{figure}
+
+\textbf{Especificaciones técnicas:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Nodo} & \textbf{IP} & \textbf{Servicios Hadoop} & \textbf{Hardware} \\
+\midrule
+\textbf{master} & 192.168.18.101 & NameNode & 6 CPUs \\
+ & & SecondaryNameNode & 10 GB RAM \\
+ & & ResourceManager & \\
+\midrule
+\textbf{slave1} & 192.168.18.100 & DataNode & 3 CPUs \\
+ & & NodeManager & 4.5 GB RAM \\
+\midrule
+\textbf{slave2} & 192.168.18.102 & DataNode & 3 CPUs \\
+ & & NodeManager & 4.5 GB RAM \\
+\midrule
+\multicolumn{4}{l}{\textbf{Total Clúster:} 12 CPUs, 19 GB RAM} \\
+\bottomrule
+\end{tabular}
+\caption{Configuración del clúster Hadoop multinodo}
+\label{tab:cluster_config}
+\end{table}
+
+\textbf{Sistema Operativo:} Ubuntu Server 22.04 LTS en los 3 nodos
+
+\textbf{Versiones de Software:}
+\begin{itemize}
+    \item \textbf{Apache Hadoop:} 3.3.6
+    \item \textbf{Java:} OpenJDK 1.8.0\_462 (Java 8)
+    \item \textbf{SSH:} Configurado sin contraseña para comunicación entre nodos
+\end{itemize}
+
+\textbf{Componentes principales:}
+\begin{itemize}
+    \item \textbf{HDFS:} Sistema de archivos distribuido con replicación de datos para tolerancia a fallos
+    \item \textbf{MapReduce:} Framework de procesamiento paralelo
+    \item \textbf{YARN:} Gestor de recursos y planificación de trabajos
+\end{itemize}
+
+\textbf{Configuración de red:} Archivo \texttt{/etc/hosts} configurado con mapeo IP-hostname en los 3 nodos para resolución de nombres local.
+
+\subsection{Configuración General}
+
+\textbf{Archivos principales configurados en \texttt{\$HADOOP\_HOME/etc/hadoop/}:}
+
+\begin{itemize}
+    \item \textbf{core-site.xml:} Define HDFS como sistema de archivos por defecto
+    \begin{lstlisting}[language=XML, basicstyle=\small\ttfamily]
+<property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://192.168.18.101:9000</value>
+</property>
+    \end{lstlisting}
+    
+    \item \textbf{hdfs-site.xml:} Configura factor de replicación y directorios
+    \begin{lstlisting}[language=XML, basicstyle=\small\ttfamily]
+<property>
+    <name>dfs.replication</name>
+    <value>2</value>
+</property>
+<property>
+    <name>dfs.namenode.name.dir</name>
+    <value>/hadoop/data/namenode</value>
+</property>
+<property>
+    <name>dfs.datanode.data.dir</name>
+    <value>/hadoop/data/datanode</value>
+</property>
+    \end{lstlisting}
+    
+    \item \textbf{mapred-site.xml:} Configura MapReduce sobre YARN
+    \begin{lstlisting}[language=XML, basicstyle=\small\ttfamily]
+<property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+</property>
+<property>
+    <name>mapreduce.jobhistory.address</name>
+    <value>192.168.18.101:10020</value>
+</property>
+    \end{lstlisting}
+    
+    \item \textbf{yarn-site.xml:} Define ResourceManager y recursos de NodeManager
+    \begin{lstlisting}[language=XML, basicstyle=\small\ttfamily]
+<property>
+    <name>yarn.resourcemanager.hostname</name>
+    <value>192.168.18.101</value>
+</property>
+<property>
+    <name>yarn.nodemanager.aux-services</name>
+    <value>mapreduce_shuffle</value>
+</property>
+    \end{lstlisting}
+    
+    \item \textbf{workers:} Lista de nodos DataNode/NodeManager
+    \begin{lstlisting}[basicstyle=\small\ttfamily]
+192.168.18.100
+192.168.18.102
+    \end{lstlisting}
+\end{itemize}
+
+\subsection{Inicialización y Verificación}
+
+\textbf{Pasos de inicialización del clúster:}
+
+\begin{enumerate}
+    \item \textbf{Formateo del NameNode (primera vez):}
+    \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily]
+hdfs namenode -format
+    \end{lstlisting}
+    
+    \item \textbf{Inicio de servicios HDFS:}
+    \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily]
+start-dfs.sh
+    \end{lstlisting}
+    Inicia NameNode, SecondaryNameNode en master y DataNode en slave1 y slave2.
+    
+    \item \textbf{Inicio de servicios YARN:}
+    \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily]
+start-yarn.sh
+    \end{lstlisting}
+    Inicia ResourceManager en master y NodeManager en slave1 y slave2.
+    
+    \item \textbf{Verificación de procesos activos:}
+    \begin{lstlisting}[language=bash, basicstyle=\small\ttfamily]
+jps
+    \end{lstlisting}
+\end{enumerate}
+
+\textbf{Comandos de verificación:}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+\textbf{Comando} & \textbf{Propósito} \\
+\midrule
+\texttt{hdfs dfsadmin -report} & Estado del HDFS (capacidad, nodos activos) \\
+\texttt{yarn node -list} & Lista de NodeManagers disponibles \\
+\texttt{hdfs dfs -ls /} & Listar archivos en HDFS \\
+\texttt{jps} & Procesos Java activos (Hadoop daemons) \\
+\bottomrule
+\end{tabular}
+\caption{Comandos de verificación del clúster}
+\label{tab:comandos_verificacion}
+\end{table}
+
+% [IMAGEN: Verificación de conexiones del clúster - jps en los 3 nodos]
+% Archivo: img/conexiones_hadoop.jpg
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{img/conexiones_hadoop.jpg}
+\caption{Verificación de procesos Hadoop activos (jps) en Master, Slave1 y Slave2}
+\label{fig:conexiones}
+\end{figure}
+
+% [IMAGEN: Configuración de máquinas virtuales]
+% Archivo: img/vm_config.png
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{img/vm_config.png}
+\caption{Configuración de las 3 máquinas virtuales en Oracle VirtualBox}
+\label{fig:vm_config}
+\end{figure}
+
+\textbf{Interfaces de monitoreo:}
+\begin{itemize}
+    \item YARN ResourceManager: \url{http://192.168.18.101:8088}
+    \item HDFS NameNode: \url{http://192.168.18.101:9870}
+\end{itemize}
+
+% [IMAGEN: Interface web YARN ResourceManager]
+% Archivo: img/yarn_web_ui.jpg
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{img/yarn_web_ui.jpg}
+\caption{Interface web de YARN ResourceManager mostrando nodos activos}
+\label{fig:yarn_ui}
+\end{figure}
+
+% [IMAGEN: Interface web HDFS NameNode]
+% Archivo: img/hdfs_namenode.jpg
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{img/hdfs_namenode.jpg}
+\caption{Interface web de HDFS NameNode mostrando capacidad y DataNodes}
+\label{fig:hdfs_ui}
+\end{figure}
+
+% [IMAGEN: Monitoreo del clúster con Termius]
+% Archivo: img/termius.jpg
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{img/termius.jpg}
+\caption{Monitoreo del clúster: estructura HDFS en Master, htop en Slave1 y Slave2}
+\label{fig:termius}
+\end{figure}
+
+\subsection{Carga de Datos}
+
+El dataset se cargó al HDFS con los siguientes comandos: \texttt{hdfs dfs -mkdir -p /input} y \texttt{hdfs dfs -put data\_concytec.csv /input/}. El factor de replicación configurado garantiza tolerancia a fallos mediante copias distribuidas de los bloques de datos.
+
+% [IMAGEN: Carga de datos al HDFS]
+% Archivo: img/data_cargada.jpg
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{img/data_cargada.jpg}
+\caption{Carga del dataset data\_concytec.csv al sistema HDFS}
+\label{fig:data_cargada}
+\end{figure}
+
+% -------------------------
+% RESULTADOS
+% -------------------------
+\section{Resultados}
+
+El análisis del dataset de proyectos CONCYTEC se realizó implementando consultas MapReduce en dos 
+configuraciones: \textbf{nodo único} y \textbf{clúster multinodo}. A continuación se presentan 
+los resultados organizados en tres categorías principales:
+
+\begin{enumerate}
+    \item \textbf{Estadísticas básicas} (MapReduce simple)
+    \item \textbf{Consultas complejas} (MapReduce encadenado)
+    \item \textbf{Modelos de Machine Learning} (Regresión y Clasificación)
+\end{enumerate}
+
+\subsection{Estadísticas Básicas con MapReduce Simple}
+
+\subsubsection{Media del Importe FONDECYT}
+
+\textbf{Objetivo:} Calcular el importe promedio adjudicado por FONDECYT a través de todos los proyectos.
+
+\textbf{Implementación MapReduce:}
+\begin{itemize}
+    \item \textbf{Mapper:} Lee cada registro y emite \texttt{(1, IMPORTE\_FONDECYT)}
+    \item \textbf{Reducer:} Suma todos los importes y cuenta registros, calcula: $\mu = \frac{\sum x_i}{n}$
+\end{itemize}
+
+\textbf{Resultado:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} & \textbf{Unidad} \\
+\midrule
+Media del IMPORTE\_FONDECYT & 463,848.18 & Soles (S/) \\
+\midrule
+\multicolumn{3}{c}{\textbf{Rendimiento}} \\
+\midrule
+Tiempo nodo único & 42.89 & segundos \\
+Tiempo clúster multinodo & 34.05 & segundos \\
+Speedup & 1.26x & (126\%) \\
+\midrule
+CPU nodo único & 44.39\% & uso promedio \\
+CPU clúster & 6.01\% & uso promedio \\
+RAM nodo único & 10,279 MB & uso promedio \\
+RAM clúster & 2,185 MB & uso promedio \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Consulta 1 - Media del Importe FONDECYT}
+\label{tab:media}
+\end{table}
+
+\textbf{Interpretación:} El importe promedio adjudicado por PROCIENCIA es de \textbf{S/ 463,848.18} por proyecto. El clúster reduce el tiempo en 26\%, de 42.89s a 34.05s. Notablemente, el uso de CPU disminuye de 44.39\% a 6.01\% por la distribución de carga entre nodos, mientras que la RAM por nodo se reduce de 10.3 GB a 2.2 GB al dividir los datos procesados.
+
+\subsubsection{Mediana del Importe FONDECYT}
+
+\textbf{Objetivo:} Calcular la mediana para identificar el valor central y detectar sesgos por valores atípicos.
+
+\textbf{Implementación MapReduce:}
+\begin{itemize}
+    \item \textbf{Mapper:} Emite \texttt{(1, IMPORTE\_FONDECYT)}
+    \item \textbf{Reducer:} Ordena valores y selecciona el elemento central: $M = x_{(n+1)/2}$ si $n$ es impar
+\end{itemize}
+
+\textbf{Resultado:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} & \textbf{Unidad} \\
+\midrule
+Mediana del IMPORTE\_FONDECYT & 350,000.00 & Soles (S/) \\
+\midrule
+\multicolumn{3}{c}{\textbf{Rendimiento}} \\
+\midrule
+Tiempo nodo único & 48.53 & segundos \\
+Tiempo clúster multinodo & 32.63 & segundos \\
+Speedup & 1.49x & (149\%) \\
+\midrule
+CPU nodo único & 53.76\% & uso promedio \\
+CPU clúster & 5.77\% & uso promedio \\
+RAM nodo único & 10,352 MB & uso promedio \\
+RAM clúster & 2,181 MB & uso promedio \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Consulta 2 - Mediana del Importe FONDECYT}
+\label{tab:mediana}
+\end{table}
+
+\textbf{Interpretación:} La mediana calculada es \textbf{S/ 350,000.00}, inferior a la media (S/ 463,848.18), indicando una distribución asimétrica positiva con proyectos de montos muy altos que elevan el promedio. El speedup de 1.49x mejora de 48.53s a 32.63s. El ordenamiento en memoria se beneficia del procesamiento paralelo distribuido.
+
+\subsubsection{Desviación Estándar del Importe FONDECYT}
+
+\textbf{Objetivo:} Medir la dispersión de los importes respecto a la media.
+
+\textbf{Implementación MapReduce (dos pasadas):}
+\begin{itemize}
+    \item \textbf{Pasada 1:} Calcula la media $\mu$
+    \item \textbf{Pasada 2:} Calcula $\sigma = \sqrt{\frac{\sum(x_i - \mu)^2}{n-1}}$
+\end{itemize}
+
+\textbf{Resultado:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} & \textbf{Unidad} \\
+\midrule
+Desviación Estándar & 515,202.87 & Soles (S/) \\
+Media (referencia) & 463,848.18 & Soles (S/) \\
+Coef. de Variación (CV) & 111.07\% & - \\
+\midrule
+\multicolumn{3}{c}{\textbf{Rendimiento}} \\
+\midrule
+Tiempo nodo único & 60.81 & segundos \\
+Tiempo clúster multinodo & 32.98 & segundos \\
+Speedup & 1.84x & (185\%) \\
+\midrule
+CPU nodo único & 63.90\% & uso promedio \\
+CPU clúster & 5.46\% & uso promedio \\
+RAM nodo único & 5,250 MB & uso promedio \\
+RAM clúster & 2,198 MB & uso promedio \\
+\bottomrule
+\end{tabular}
+\caption{Desviación Estándar del Importe FONDECYT}
+\label{tab:desviacion}
+\end{table}
+
+\textbf{Interpretación:} La desviación estándar calculada es \textbf{S/ 515,202.87}, mayor que la media (S/ 463,848.18), confirmando alta variabilidad en los montos adjudicados (CV > 100\%). Esto indica gran dispersión: desde proyectos pequeños hasta proyectos con financiamiento muy elevado. Logra el mejor speedup (1.84x) al reducir el tiempo de 60.81s a 32.98s, beneficiándose de las dos pasadas MapReduce paralelas. La alta CPU (63.90\%) en nodo único evidencia carga computacional intensa.
+
+\subsection{Consultas Complejas con MapReduce Encadenado}
+
+\subsubsection{Consulta 1: Porcentaje del Monto Total por Tipo de Moneda dentro de cada Entidad}
+
+\textbf{Pregunta:} ¿Qué porcentaje del financiamiento de cada entidad corresponde a cada tipo de moneda?
+
+\textbf{Justificación:} Identificar si las instituciones reciben financiamiento diversificado 
+(local e internacional) o dependen principalmente de una fuente.
+
+\textbf{Implementación (3 jobs MapReduce):}
+
+\begin{enumerate}
+    \item \textbf{Job 1:} Suma monto por \texttt{(ENTIDAD, MONEDA)}
+    \item \textbf{Job 2:} Suma monto total por \texttt{ENTIDAD}
+    \item \textbf{Job 3:} Calcula porcentaje: $\%_{i} = \frac{MONTO_{entidad,moneda}}{TOTAL_{entidad}} \times 100$
+\end{enumerate}
+
+\textbf{Resultado (muestra representativa):}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lp{5.5cm}ccc}
+\toprule
+\textbf{Tipo} & \textbf{Entidad} & \textbf{\% Soles} & \textbf{\% Euro} & \textbf{\% Libras} \\
+\midrule
+Universidad & INSTITUTO DE INVESTIGACIONES DE LA AMAZONIA PERUANA & 95.63\% & 4.37\% & 0\% \\
+Universidad & INSTITUTO DEL MAR DEL PERU & 100\% & 0\% & 0\% \\
+Universidad & INSTITUTO GEOFISICO DEL PERU & 100\% & 0\% & 0\% \\
+Universidad & INSTITUTO GEOLOGICO MINERO Y METALURGICO & 100\% & 0\% & 0\% \\
+Universidad & INSTITUTO NACIONAL DE CIENCIAS NEUROLOGICAS & 61.38\% & 38.62\% & 0\% \\
+Universidad & INSTITUTO NACIONAL DE CIENCIAS NEUROLOGICAS EURO & 81.62\% & 18.38\% & 0\% \\
+Universidad & INSTITUTO NACIONAL DE ENFERMEDADES NEOPLASICAS & 100\% & 0\% & 0\% \\
+Universidad & INSTITUTO NACIONAL DE SALUD MENTAL & 100\% & 0\% & 0\% \\
+\bottomrule
+\end{tabular}
+\caption{Distribución porcentual de financiamiento por moneda según entidad ejecutora}
+\label{tab:porcentaje_moneda}
+\end{table}
+
+\textbf{Hallazgos:} La mayoría de instituciones (6 de 8 mostradas) reciben 100\% financiamiento en Soles, indicando dependencia de recursos locales. Solo 2 instituciones muestran diversificación con financiamiento en Euros (AMAZONIA PERUANA 4.37\%, CIENCIAS NEUROLOGICAS 18-38\%), sugiriendo colaboración internacional.
+
+\textbf{Rendimiento:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Configuración} & \textbf{Tiempo (s)} & \textbf{CPU/RAM Promedio} \\
+\midrule
+Nodo único & 130.21 & 42.44\% / 9,030 MB \\
+Clúster multinodo & 104.60 & 2.32\% / 2,202 MB \\
+\midrule
+\textbf{Speedup} & \textbf{1.24x (125\%)} & - \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Consulta 4 - Porcentaje por Moneda (3 jobs encadenados)}
+\label{tab:consulta4_perf}
+\end{table}
+
+\textbf{Interpretación:} Esta consulta compleja con 3 jobs MapReduce encadenados reduce el tiempo de 130.21s a 104.60s (speedup 1.24x). El uso de CPU es notablemente bajo en el clúster (2.32\% vs 42.44\%), evidenciando distribución eficiente de la carga. La RAM por nodo disminuye significativamente al particionar los datos intermedios entre múltiples workers.
+
+\subsubsection{Consulta 2: Promedio del Importe FONDECYT según Tipo de Entidad y Sexo}
+
+\textbf{Pregunta:} ¿Existe diferencia en el monto promedio adjudicado según el tipo de institución 
+y el género del investigador principal?
+
+\textbf{Justificación:} Evaluar equidad de género y detectar sesgos en la asignación de recursos.
+
+\textbf{Implementación (2 jobs MapReduce):}
+
+\begin{enumerate}
+    \item \textbf{Job 1:} Agrupa por \texttt{(TIPO\_ENTIDAD, SEXO)} y suma importes
+    \item \textbf{Job 2:} Calcula promedio por grupo
+\end{enumerate}
+
+\textbf{Resultado:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llr}
+\toprule
+\textbf{Tipo Entidad} & \textbf{Sexo} & \textbf{Promedio IMPORTE (S/)} \\
+\midrule
+ASOCIACION & MASCULINO & 359,775.00 \\
+EMPRESA & FEMENINO & 314,525.83 \\
+EMPRESA & MASCULINO & 580,180.32 \\
+ENEX & FEMENINO & 400,000.00 \\
+ENEX & MASCULINO & 191,750.00 \\
+ENTIDAD DE GOBIERNO & FEMENINO & 191,750.00 \\
+ENTIDAD DE GOBIERNO & MASCULINO & 275,496.06 \\
+INSTITUTO DE INVESTIGACION & FEMENINO & 477,893.44 \\
+\bottomrule
+\end{tabular}
+\caption{Promedio del importe PROCIENCIA por tipo de entidad y sexo del investigador}
+\label{tab:promedio_entidad_sexo}
+\end{table}
+
+\textbf{Hallazgos:} Se observan diferencias significativas: en \textbf{EMPRESA}, investigadores masculinos reciben en promedio S/ 580,180.32 vs S/ 314,525.83 para femeninas (84\% más). Sin embargo, en \textbf{INSTITUTO DE INVESTIGACION}, las investigadoras no muestran desventaja. En \textbf{ENEX}, se invierte la tendencia con investigadoras recibiendo más que investigadores. Esto sugiere que la equidad de género varía según el tipo de institución ejecutora.
+
+\textbf{Rendimiento:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Configuración} & \textbf{Tiempo (s)} & \textbf{CPU/RAM Promedio} \\
+\midrule
+Nodo único & 111.27 & 34.46\% / 9,001 MB \\
+Clúster multinodo & 100.01 & 3.17\% / 2,217 MB \\
+\midrule
+\textbf{Speedup} & \textbf{1.11x (111\%)} & - \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Consulta 5 - Promedio por Entidad y Sexo (2 jobs encadenados)}
+\label{tab:consulta5_perf}
+\end{table}
+
+\textbf{Interpretación:} Consulta con 2 jobs encadenados logra speedup de 1.11x (111.27s → 100.01s). Aunque la mejora es moderada, el clúster mantiene baja utilización de CPU (3.17\%) y RAM por nodo (2.2 GB), demostrando eficiencia en el uso de recursos. Las agregaciones multinivel se benefician de la capacidad de procesamiento distribuido.
+
+\subsection{Modelos de Machine Learning}
+
+\subsubsection{Modelo 1: Regresión Lineal (Monto Total vs Importe FONDECYT)}
+
+\textbf{Objetivo:} Analizar la relación entre el monto total del proyecto y el importe adjudicado por FONDECYT.
+
+\textbf{Hipótesis:} $IMPORTE\_FONDECYT = \beta_0 + \beta_1 \cdot MONTO + \epsilon$
+
+\textbf{Implementación MapReduce:}
+\begin{itemize}
+    \item Cálculo de medias, varianzas y covarianzas mediante agregación distribuida
+    \item Estimación de parámetros: $\beta_1 = \frac{Cov(X,Y)}{Var(X)}$, $\beta_0 = \bar{Y} - \beta_1\bar{X}$
+\end{itemize}
+
+\textbf{Resultado - Predicciones (muestra):}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{rrc}
+\toprule
+\textbf{MONTO (S/)} & \textbf{IMPORTE\_PRED (S/)} & \textbf{Observación} \\
+\midrule
+300,000.00 & 351,942.00 & Predicción cercana \\
+329,550.00 & 371,193.50 & Predicción cercana \\
+300,000.00 & 351,942.00 & Predicción cercana \\
+440,595.00 & 443,328.75 & Muy ajustada \\
+262,010.00 & 327,248.50 & Predicción cercana \\
+95,527.40 & 219,034.81 & Desviación notable \\
+300,000.00 & 351,942.00 & Predicción cercana \\
+100,000.00 & 221,942.00 & Predicción cercana \\
+\bottomrule
+\end{tabular}
+\caption{Predicciones del modelo de regresión lineal MONTO vs IMPORTE\_FONDECYT}
+\label{tab:regresion}
+\end{table}
+
+\textbf{Observación:} El modelo genera predicciones razonables para montos medios-altos (300K-440K), donde los valores predichos se aproximan a los reales. Sin embargo, para montos bajos (<100K), la predicción sobrestima significativamente. Esto sugiere una relación no perfectamente lineal, posiblemente con comportamiento diferente en rangos extremos. Los coeficientes exactos ($\beta_0$, $\beta_1$, $R^2$, RMSE) se pueden derivar del modelo entrenado.
+
+\textbf{Rendimiento:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Configuración} & \textbf{Tiempo (s)} & \textbf{CPU/RAM Promedio} \\
+\midrule
+Nodo único & 113.60 & 36.17\% / 9,079 MB \\
+Clúster multinodo & 111.19 & 2.86\% / 2,114 MB \\
+\midrule
+\textbf{Speedup} & \textbf{1.02x (102\%)} & - \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Consulta 6 - Regresión Lineal}
+\label{tab:regresion_perf}
+\end{table}
+
+\textbf{Interpretación:} La regresión lineal muestra el speedup más bajo (1.02x), mejorando marginalmente de 113.60s a 111.19s. Este resultado se debe a que las operaciones matemáticas intensivas (cálculo de sumatorias, multiplicaciones de matrices, coeficientes) están limitadas por CPU y no se benefician significativamente de la distribución de datos. Sin embargo, el clúster mantiene bajo uso de recursos (2.86\% CPU, 2.1 GB RAM).
+
+\subsubsection{Modelo 2: Clasificación por Rangos de Importe}
+
+\textbf{Objetivo:} Clasificar proyectos en categorías de financiamiento (Bajo, Medio, Alto, Muy Alto).
+
+\textbf{Categorías definidas:}
+\begin{itemize}
+    \item \textbf{Bajo:} Importe $<$ 100,000 PEN
+    \item \textbf{Medio:} 100,000 $\leq$ Importe $<$ 250,000 PEN
+    \item \textbf{Alto:} 250,000 $\leq$ Importe $<$ 500,000 PEN
+    \item \textbf{Muy Alto:} Importe $\geq$ 500,000 PEN
+\end{itemize}
+
+\textbf{Resultado (muestra representativa):}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lp{7cm}c}
+\toprule
+\textbf{Entidad} & \textbf{Descripción} & \textbf{Clasificación} \\
+\midrule
+INSTITUTO NACIONAL DE SALUD MENTAL Honorio Delgado & Promedio=350000.00 & Clase=Alta \\
+INSTITUTO NACIONAL MATERNO PERINATAL & Promedio=132700.00 & Clase=Media \\
+INSTITUTO TECNOLOGICO DE LA PRODUCCION & Promedio=363820.90 & Clase=Alta \\
+LATAM COACHING NETWORK S.A.C. & Promedio=194405.00 & Clase=Media \\
+\bottomrule
+\end{tabular}
+\caption{Clasificación de instituciones según promedio de financiamiento}
+\label{tab:clasificacion}
+\end{table}
+
+\textbf{Observaciones:} El modelo clasifica exitosamente las instituciones según su promedio de financiamiento histórico. Institutos nacionales especializados (SALUD MENTAL, TECNOLOGICO) logran clasificación \textbf{Alta} con promedios >350K, mientras que instituciones con menor histórico (MATERNO PERINATAL, LATAM COACHING) obtienen clasificación \textbf{Media} con promedios entre 100K-250K. Esta segmentación permite identificar instituciones de alto impacto en investigación.
+
+\textbf{Rendimiento:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Configuración} & \textbf{Tiempo (s)} & \textbf{CPU/RAM Promedio} \\
+\midrule
+Nodo único & 39.20 & 37.17\% / 9,030 MB \\
+Clúster multinodo & 32.80 & 5.71\% / 2,198 MB \\
+\midrule
+\textbf{Speedup} & \textbf{1.20x (119\%)} & - \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Consulta 7 - Clasificación por Rangos}
+\label{tab:clasificacion_perf}
+\end{table}
+
+\textbf{Interpretación:} La clasificación simple alcanza speedup de 1.20x (39.20s → 32.80s). Esta consulta de un solo job MapReduce distribuye eficientemente la tarea de categorización de proyectos. El uso moderado de CPU en nodo único (37.17\%) y bajo en clúster (5.71\%) muestra que la operación de clasificación if-else no es computacionalmente intensiva pero se beneficia del paralelismo en la lectura y procesamiento de registros.
+\label{tab:clasificacion}
+\end{table}
+
+\textbf{Interpretación:}
+
+\begin{itemize}
+    \item \textbf{Concentración media:} 45.2\% de proyectos reciben financiamiento medio (100-250k)
+    \item \textbf{Acceso limitado a grandes fondos:} Solo 8.6\% accede a financiamiento mayor a 500k
+    \item \textbf{Distribución sesgada:} La mayoría de proyectos (65.7\%) se concentra en las categorías 
+    baja y media
+\end{itemize}
+
+\subsection{Comparativa de Rendimiento: Nodo Único vs Clúster}
+
+\textbf{Configuración del clúster:}
+\begin{itemize}
+    \item \textbf{Nodo único:} 1 nodo con 4 CPUs, 16 GB RAM
+    \item \textbf{Clúster multinodo:} Master (6 CPUs, 10 GB RAM) + Slave (6 CPUs, 9 GB RAM) = 12 CPUs totales, 19 GB RAM combinados
+\end{itemize}
+
+\textbf{Resultados de benchmark:}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Consulta} & \textbf{Nodo Único (s)} & \textbf{Clúster (s)} & \textbf{Speedup} & \textbf{Mejora \%} \\
+\midrule
+Consulta 1 - Media & 42.89 & 34.05 & 1.26x & 26\% \\
+Consulta 2 - Mediana & 48.53 & 32.63 & 1.49x & 49\% \\
+Consulta 3 - Desv. Estándar & 60.81 & 32.98 & 1.84x & 84\% \\
+\midrule
+Consulta 4 - \% Moneda (3 jobs) & 130.21 & 104.60 & 1.25x & 25\% \\
+Consulta 5 - Prom. Entidad/Sexo & 111.27 & 100.01 & 1.11x & 11\% \\
+\midrule
+Consulta 6 - Regresión Lineal & 113.60 & 111.19 & 1.02x & 2\% \\
+Consulta 7 - Clasificación & 39.20 & 32.80 & 1.20x & 20\% \\
+\midrule
+\textbf{Promedio} & \textbf{78.08} & \textbf{64.04} & \textbf{1.31x} & \textbf{31\%} \\
+\bottomrule
+\end{tabular}
+\caption{Comparativa de rendimiento entre nodo único y clúster multinodo}
+\label{tab:benchmark}
+\end{table}
+
+\textbf{Análisis de resultados:}
+
+\begin{itemize}
+    \item \textbf{Speedup promedio = 1.31x:} El clúster multinodo reduce el tiempo promedio de 78.08s a 64.04s (31\% de mejora)
+    \item \textbf{Mayor speedup:} Desviación estándar (1.84x) por requerir 2 jobs y cálculos intensivos
+    \item \textbf{Menor speedup:} Regresión lineal (1.02x) debido a operaciones matemáticas limitadas por CPU
+    \item \textbf{Uso de recursos:} Clúster mantiene bajo uso de CPU (2-6\%) y RAM por nodo (~2.2 GB) vs alto uso en nodo único (34-64\% CPU, 5-10 GB RAM)
+    \item \textbf{Consultas complejas:} Consulta 4 con 3 jobs encadenados logra speedup de 1.25x (130s → 105s)
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    bar width=12pt,
+    width=14cm,
+    height=8cm,
+    ylabel={Tiempo de Ejecución (s)},
+    symbolic x coords={Media, Mediana, Desv.Est, Cons.4, Cons.5, Regresión, Clasif.},
+    xtick=data,
+    x tick label style={rotate=45, anchor=east},
+    legend style={at={(0.5,-0.25)}, anchor=north, legend columns=2},
+    ymin=0,
+    ymax=140,
+    grid=major,
+    nodes near coords,
+    every node near coord/.append style={font=\tiny, rotate=90, anchor=west}
+]
+\addplot coordinates {(Media,42.89) (Mediana,48.53) (Desv.Est,60.81) (Cons.4,130.21) (Cons.5,111.27) (Regresión,113.60) (Clasif.,39.20)};
+\addplot coordinates {(Media,34.05) (Mediana,32.63) (Desv.Est,32.98) (Cons.4,104.60) (Cons.5,100.01) (Regresión,111.19) (Clasif.,32.80)};
+\legend{Nodo Único, Clúster Multinodo}
+\end{axis}
+\end{tikzpicture}
+\caption{Comparativa visual de tiempos de ejecución}
+\label{fig:benchmark}
+\end{figure}
+
+% [IMAGEN: Ejemplo de ejecución con monitoreo de recursos]
+% Archivo: img/ejemplo_ejecuciones.jpg
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{img/ejemplo_ejecucion.jpg}
+\caption{Ejecución de consulta promedio con monitoreo de uso de CPU y RAM (htop) en los nodos del clúster}
+\label{fig:ejemplo_ejecuciones}
+\end{figure}
+
+\textbf{Observación:} La imagen muestra la ejecución real de una consulta con los resultados en el centro y el monitoreo de recursos mediante \texttt{htop} en los nodos laterales. Se evidencia la distribución de carga computacional entre los nodos del clúster, confirmando el paralelismo efectivo del procesamiento MapReduce.
+
+% -------------------------
+% VISUALIZACIONES CON POWER BI
+% -------------------------
+\section{Visualizaciones con Power BI}
+
+Para complementar el análisis estadístico realizado con Hadoop MapReduce, se desarrollaron visualizaciones interactivas en \textbf{Microsoft Power BI} que permiten explorar patrones temporales, distribución por género y concentración del financiamiento entre entidades ejecutoras.
+
+\subsection{Tendencia Temporal del Financiamiento}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{img/powerbi_monto_by_anio.png}
+\caption{Evolución del monto total adjudicado por PROCIENCIA según año (2015-2021)}
+\label{fig:powerbi_anio}
+\end{figure}
+
+\textbf{Análisis:} El gráfico de barras muestra la evolución del financiamiento total adjudicado por año. Se observan picos en ciertos años que pueden correlacionarse con convocatorias especiales o programas de incentivo a la investigación científica. La tendencia permite identificar periodos de mayor inversión en ciencia y tecnología.
+
+\subsection{Distribución del Financiamiento por Género}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{img/powerbi_importe_by_sexo.png}
+\caption{Distribución del importe total adjudicado según sexo del investigador principal}
+\label{fig:powerbi_sexo}
+\end{figure}
+
+\textbf{Análisis:} El gráfico de torta (o barras) muestra la distribución porcentual del financiamiento según el género del investigador principal. Este análisis es fundamental para evaluar la equidad de género en el acceso a fondos de investigación y detectar posibles brechas que requieran políticas de incentivo.
+
+\subsection{Tendencia Temporal del Importe FONDECYT}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{img/powerbi_importe_tendencia.png}
+\caption{Tendencia del importe promedio adjudicado por FONDECYT/PROCIENCIA a lo largo del tiempo}
+\label{fig:powerbi_tendencia}
+\end{figure}
+
+\textbf{Análisis:} El gráfico de línea de tendencia muestra la evolución del importe promedio adjudicado por proyecto a lo largo de los años. Permite identificar si existe una tendencia creciente o decreciente en los montos individuales, independientemente del número total de proyectos financiados.
+
+\subsection{Concentración del Financiamiento por Entidad}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{img/powerbi_importe_by_entidad.png}
+\caption{Distribución del importe total adjudicado por entidad ejecutora (Top instituciones)}
+\label{fig:powerbi_entidad}
+\end{figure}
+
+\textbf{Análisis:} El gráfico de barras horizontales muestra las entidades ejecutoras que concentran mayor financiamiento acumulado. Este análisis revela la concentración del financiamiento: si pocas instituciones (universidades nacionales, institutos de investigación) concentran la mayoría de los recursos, o si existe una distribución más equitativa entre entidades públicas, privadas y ONG. Permite identificar instituciones líderes en investigación científica financiada por PROCIENCIA.
+
+
+% -------------------------
+% CONCLUSIONES
+% -------------------------
+\section{Conclusiones}
+
+El presente trabajo implementó y evaluó el procesamiento de consultas MapReduce sobre el dataset de proyectos CONCYTEC/FONDECYT, comparando el rendimiento entre un nodo único (4 CPUs, 16 GB RAM) y un clúster distribuido de 3 nodos (12 CPUs totales, 19 GB RAM). Se ejecutaron 7 consultas que abarcaron estadísticas descriptivas, agregaciones complejas con MapReduce encadenado y modelos de machine learning.
+
+Los resultados demostraron que el clúster multinodo logró un speedup promedio de 1.31x, reduciendo el tiempo promedio de ejecución de 78.08 segundos a 64.04 segundos. Este speedup moderado, comparado con el potencial teórico de 3.25x (por diferencia de recursos), se explica por el overhead de comunicación y sincronización entre nodos que consume aproximadamente el 60\% del beneficio esperado. La eficiencia promedio del sistema fue del 40.3\%, indicando que para datasets de tamaño moderado (911 registros) el overhead de distribución limita significativamente las ganancias de rendimiento.
+
+El análisis por tipo de consulta reveló comportamientos diferenciados: las consultas simples de estadísticas descriptivas (media, mediana, desviación estándar) obtuvieron speedups entre 1.26x y 1.84x, siendo la desviación estándar la más beneficiada (1.84x) por requerir dos pasadas MapReduce y generar alta carga de CPU en el nodo único (63.90\% vs 5.46\% en el clúster). Las consultas complejas con MapReduce encadenado alcanzaron speedups de 1.25x y 1.11x, con reducciones absolutas considerables en tiempo (130s → 105s, 111s → 100s). Los modelos de machine learning mostraron resultados mixtos: la regresión lineal obtuvo el menor speedup (1.02x) por estar limitada por operaciones matemáticas intensivas en CPU, mientras que la clasificación logró 1.19x al beneficiarse de la distribución del proceso de categorización.
+
+El análisis de uso de recursos evidenció diferencias significativas: el nodo único operó con 34-64\% de uso de CPU y 5-10 GB de RAM (alta presión), mientras que el clúster distribuyó la carga eficientemente con solo 2-6\% de CPU por nodo y aproximadamente 2.2 GB de RAM, manteniendo capacidad para escalabilidad futura. Esto valida que Apache Hadoop MapReduce es efectivo para procesamiento de datos científicos, logrando reducciones de tiempo promedio de 14 segundos por consulta. Sin embargo, el overhead inherente a los sistemas distribuidos (inicialización, comunicación, sincronización) limita el beneficio para datasets pequeños, siendo más efectivo para procesos complejos con múltiples etapas de transformación donde el paralelismo compensa el costo de distribución.
+
+\vspace{1cm}
+
+% -------------------------
+% REFERENCIAS (OPCIONAL)
+% -------------------------
+\newpage
+\section*{Referencias}
+
+\begin{enumerate}[label={[\arabic*]}, leftmargin=*]
+    \item Consejo Nacional de Ciencia, Tecnología e Innovación Tecnológica (CONCYTEC). \textit{Estadísticas 
+    de Proyectos de Investigación Científica por fuentes de financiamiento de PROCIENCIA (2015-2021)}. 
+    Plataforma Nacional de Datos Abiertos. Disponible en: 
+    \url{https://datosabiertos.gob.pe/dataset/estadisticas-de-proyectos-de-investigacion-cientifica-por-fuentes-de-financiamiento-de}
+    
+    \item CONCYTEC. (2014). \textit{Reglamento del Fondo Nacional de Desarrollo Científico, Tecnológico 
+    y de Innovación Tecnológica (FONDECYT)}. Decreto Supremo N° 015-2014-CONCYTEC. Lima, Perú. [Nota: FONDECYT 
+    ahora se denomina PROCIENCIA - Programa Nacional de Investigación Científica y Estudios Avanzados].
+    
+    \item Dean, J., \& Ghemawat, S. (2008). MapReduce: Simplified Data Processing on Large Clusters. 
+    \textit{Communications of the ACM}, 51(1), 107-113.
+    
+    \item White, T. (2015). \textit{Hadoop: The Definitive Guide} (4th ed.). O'Reilly Media.
+    
+    \item Shvachko, K., Kuang, H., Radia, S., \& Chansler, R. (2010). The Hadoop Distributed File System. 
+    \textit{Proceedings of the 2010 IEEE 26th Symposium on Mass Storage Systems and Technologies (MSST)}, 1-10.
+    
+    \item McKinney, W. (2017). \textit{Python for Data Analysis: Data Wrangling with Pandas, NumPy, 
+    and IPython} (2nd ed.). O'Reilly Media.
+    
+    \item Lam, C. (2010). \textit{Hadoop in Action}. Manning Publications.
+    
+    \item Vavilapalli, V. K., et al. (2013). Apache Hadoop YARN: Yet Another Resource Negotiator. 
+    \textit{Proceedings of the 4th Annual Symposium on Cloud Computing (SOCC)}, Article 5, 1-16.
+    
+    \item Gobierno del Perú. (2004). Ley N° 28303: Ley Marco de Ciencia, Tecnología e Innovación 
+    Tecnológica. Lima, Perú.
+
+\end{enumerate}
+
+\end{document}

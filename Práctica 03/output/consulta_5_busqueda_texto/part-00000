@@ -1,0 +1,26 @@
+======================================================================
+CONSULTA 5: Buscar Texto en Campo y Agrupar por Categoria
+======================================================================
+
+Texto buscado en VISITA_SALA: 'Hemeroteca'
+Campo de agrupacion: VISITA_SEDE
+Total de visitas a 'Hemeroteca': 26971
+
+DISTRIBUCION POR SEDE:
+----------------------------------------------------------------------
+Biblioteca Nacional del Per�                       :  20,244 visitas (75.06%)
+Biblioteca Nacional del Perú                       :   4,532 visitas (16.80%)
+Gran Biblioteca P�blica de Lima                    :   2,195 visitas (8.14%)
+
+DISTRIBUCION POR GENERO:
+--------------------------------------------------
+Masculino            :  19,622 visitas (72.75%)
+Femenino             :   7,349 visitas (27.25%)
+
+COMPARACION HEMEROTECA VS COLECCION PERUANA:
+------------------------------------------------------------------------------------------
+Sede                                               |   Hemeroteca | Col. Peruana
+------------------------------------------------------------------------------------------
+Biblioteca Nacional del Per�                       |     20,244 |       23,562
+Biblioteca Nacional del Perú                       |      4,532 |        1,248
+Gran Biblioteca P�blica de Lima                    |      2,195 |            0

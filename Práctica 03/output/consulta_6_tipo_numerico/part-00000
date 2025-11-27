@@ -1,0 +1,23 @@
+======================================================================
+CONSULTA 6: Agrupar por Tipo y Encontrar Mayores/Menores
+======================================================================
+
+Campo de agrupacion: CIUDADANO_TIPO_DOCUMENTO
+Campo numerico: Edad (derivada de CIUDADANO_FECHA_NACIMIENTO)
+Total de registros con edad: 329657
+
+ESTADISTICAS DE EDAD POR TIPO DE DOCUMENTO:
+------------------------------------------------------------------------------------------
+Tipo Documento  | Edad Min | Edad Max |  Promedio |      Total
+------------------------------------------------------------------------------------------
+DNI             |        1 |      108 |     28.40 |    325,581
+Pasaporte       |        1 |       81 |     33.91 |      2,156
+Carne extranjeria |        2 |       82 |     27.33 |      1,310
+CE              |       16 |       70 |     34.41 |        338
+PTP             |        1 |       67 |     14.64 |        260
+Sin Documento   |        5 |       51 |     15.75 |         12
+
+CASOS EXTREMOS:
+--------------------------------------------------
+Visitante mas joven: 1 aÃ±os (DNI)
+Visitante mas viejo: 108 aÃ±os (DNI)
