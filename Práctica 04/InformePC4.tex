@@ -1,0 +1,966 @@
+\documentclass[12pt,a4paper]{article}
+
+% Márgenes y formato de párrafo
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\setlength{\parindent}{0in}
+\setlength{\parskip}{0.5\baselineskip}
+
+% Paquetes esenciales
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{graphicx}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{caption,subcaption}
+\usepackage{multicol,multirow}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{tocloft}
+\usepackage{fancyhdr}
+\usepackage{pgfplots}
+\usepackage{listings}
+\pgfplotsset{compat=1.18}
+
+% Configuración de páginas
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Análisis de Infracciones de Tránsito - Spark SQL y Machine Learning}
+\fancyhead[R]{\small CC531 - Práctica 04 2025-II}
+\fancyfoot[C]{\thepage}
+
+% Configuración del índice
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+\renewcommand*\contentsname{Contenido}
+
+% Configuración de listas
+\setlist[itemize]{itemsep=0.3em, topsep=0.5em}
+\setlist[enumerate]{itemsep=0.3em, topsep=0.5em}
+
+% Definición de colores personalizados
+\definecolor{sparkblue}{RGB}{41,128,185}
+\definecolor{sparkgreen}{RGB}{39,174,96}
+\definecolor{codebackground}{RGB}{245,245,245}
+
+% Configuración de código
+\lstset{
+    backgroundcolor=\color{codebackground},
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    captionpos=b,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red}
+}
+
+% -------------------------
+% DOCUMENTO
+% -------------------------
+
+\begin{document}
+\selectlanguage{spanish}
+
+% -------------------------
+% PORTADA
+% -------------------------
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+
+{\huge\bfseries Análisis en Macrodatos\par}
+\vspace{0.5cm}
+{\LARGE Análisis de Infracciones de Tránsito de Cajamarca\\
+mediante Apache Spark SQL y Machine Learning\par}
+
+\vspace{2cm}
+
+{\Large\textbf{Autor:}\par}
+\vspace{0.5cm}
+{\large Guillermo Ronie Salcedo Alvarez\par}
+
+\vspace{1cm}
+
+\includegraphics[width=0.25\textwidth]{img/logo_uni.png}
+\vspace{1cm}
+
+{\large Universidad Nacional de Ingeniería\\
+Facultad de Ciencias\par}
+
+\vspace{1cm}
+
+{\large Curso: CC531 - Análisis en Macrodatos\\
+Práctica Calificada 04\par}
+
+\vfill
+
+{\large Noviembre 2025\par}
+
+\end{titlepage}
+
+% -------------------------
+% RESUMEN
+% -------------------------
+\newpage
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent
+El presente informe analiza el dataset de \textbf{``Infracciones de Tránsito del Distrito de Cajamarca''} publicado por la Municipalidad Provincial de Cajamarca, empleando \textbf{Apache Spark SQL} sobre \textbf{PostgreSQL} para procesamiento y análisis de datos estructurados. El dataset contiene registros de infracciones con 25 variables que incluyen información sobre ubicación geográfica, tipo de infracción, montos, conductor, vehículo e internamiento.
+
+La metodología implementada consistió en tres fases: (1) \textbf{Diseño e implementación de base de datos relacional} mediante normalización del dataset CSV en 7 tablas relacionales en PostgreSQL, (2) \textbf{Consultas analíticas con Spark SQL} que incluyen proyecciones, filtros, agregaciones, joins y funciones temporales, y (3) \textbf{Modelos de Machine Learning} con Random Forest para clasificación (predicción de pago de multas) y Regresión Lineal en tres versiones incrementales para predicción del monto de infracción.
+
+Los resultados del modelo de clasificación Random Forest alcanzaron un accuracy de 95.13\%, F1-Score de 0.9678 y Recall de 0.9748, demostrando alta capacidad predictiva. En regresión, el experimento incremental validó la importancia de la selección de características: la versión 1 (variables operativas) logró R² = 0.16, la versión 2 (variables administrativas) duplicó el rendimiento con R² = 0.33, y la versión 3 (variables normativas) alcanzó el máximo con R² = 0.35 y RMSE = S/ 795.00.
+
+\vspace{0.5cm}
+\noindent\textbf{Palabras clave:} Apache Spark, Spark SQL, PostgreSQL, Machine Learning, Random Forest, Regresión Lineal, JDBC, Infracciones de Tránsito
+
+\end{abstract}
+
+
+\newpage
+\pagenumbering{roman}
+\tableofcontents
+
+\newpage
+\pagenumbering{arabic}
+
+% -------------------------
+% INTRODUCCIÓN
+% -------------------------
+\section{Introducción}
+
+El análisis de datos de tránsito es fundamental para la gestión municipal y la toma de decisiones en seguridad vial. La Municipalidad Provincial de Cajamarca publica el dataset de infracciones de tránsito que contiene información detallada sobre papeletas, montos, conductores, vehículos e internamiento. Este trabajo aplica \textbf{Apache Spark SQL} integrado con \textbf{PostgreSQL} para procesar y analizar estos datos mediante consultas estructuradas y modelos de machine learning.
+
+\subsection{Objetivos}
+
+\textbf{Objetivo General:} Implementar y analizar el dataset de infracciones de tránsito de Cajamarca usando Apache Spark SQL con integración a PostgreSQL y modelos de machine learning.
+
+\textbf{Objetivos Específicos:}
+\begin{itemize}
+    \item Diseñar e implementar modelo relacional normalizado en PostgreSQL con 7 tablas
+    \item Implementar consultas SQL usando DataFrames API y Spark SQL nativo
+    \item Desarrollar modelo de clasificación Random Forest para predicción de pago de multas
+    \item Implementar modelo de regresión lineal incremental para predicción de montos
+    \item Evaluar y comparar métricas de rendimiento de los modelos (Accuracy, F1-Score, R², RMSE)
+\end{itemize}
+
+\subsection{Alcance}
+
+El análisis se limita al dataset oficial de infracciones de tránsito de Cajamarca. La metodología incluye normalización de datos, consultas analíticas con Spark SQL y machine learning predictivo. El enfoque combina análisis exploratorio con modelado estadístico para extraer patrones y predicciones sobre el comportamiento de infracciones y pagos.
+
+% -------------------------
+% MARCO TEÓRICO
+% -------------------------
+\section{Marco Teórico}
+
+\subsection{Apache Spark y Spark SQL}
+
+\textbf{Apache Spark} es un framework de procesamiento distribuido en memoria diseñado para análisis de datos a gran escala. Componentes principales:
+
+\begin{itemize}
+    \item \textbf{Spark Core:} Motor de ejecución distribuida con RDDs (Resilient Distributed Datasets)
+    \item \textbf{Spark SQL:} Módulo para procesamiento de datos estructurados con soporte para SQL, DataFrames y Datasets
+    \item \textbf{Spark MLlib:} Librería de machine learning escalable con algoritmos de clasificación, regresión, clustering y filtrado colaborativo
+    \item \textbf{JDBC Connector:} Permite conectar Spark con bases de datos relacionales (PostgreSQL, MySQL, Oracle)
+\end{itemize}
+
+\textbf{DataFrames API:} Abstracción de datos estructurados similar a tablas de bases de datos relacionales. Permite operaciones como \texttt{select()}, \texttt{filter()}, \texttt{groupBy()}, \texttt{join()} con optimización automática mediante Catalyst Optimizer.
+
+\textbf{Spark SQL Nativo:} Permite escribir consultas SQL directamente sobre vistas temporales creadas desde DataFrames, facilitando análisis para usuarios familiarizados con SQL estándar.
+
+\subsection{PostgreSQL}
+
+\textbf{PostgreSQL} es un sistema de gestión de bases de datos relacional de código abierto con soporte ACID, transacciones, claves foráneas e integridad referencial. Ventajas:
+
+\begin{itemize}
+    \item \textbf{Normalización:} Permite diseñar esquemas normalizados (1NF, 2NF, 3NF) para eliminar redundancia
+    \item \textbf{Integridad referencial:} Claves foráneas garantizan consistencia entre tablas relacionadas
+    \item \textbf{JDBC:} Interfaz estándar para conectar aplicaciones Java/Scala con bases de datos
+\end{itemize}
+
+\subsection{Machine Learning con Spark MLlib}
+
+\textbf{Random Forest:} Algoritmo de clasificación basado en ensamble de árboles de decisión. Cada árbol se entrena con un subset aleatorio de datos y características (bootstrap + feature bagging). La predicción final se obtiene por votación mayoritaria. Ventajas: robusto contra overfitting, maneja variables categóricas y numéricas, proporciona importancia de características.
+
+\textbf{Regresión Lineal:} Modelo estadístico que establece relación lineal entre variables independientes (features) y variable dependiente (target): $y = \beta_0 + \beta_1 x_1 + ... + \beta_n x_n + \epsilon$. Spark MLlib implementa Ordinary Least Squares (OLS) con regularización L1 (Lasso) y L2 (Ridge) mediante ElasticNet.
+
+\textbf{Pipeline ML:} Secuencia de transformadores y estimadores que automatizan el flujo de trabajo:
+\begin{enumerate}
+    \item \textbf{StringIndexer:} Convierte variables categóricas (texto) a índices numéricos
+    \item \textbf{VectorAssembler:} Combina múltiples columnas en un solo vector de características
+    \item \textbf{Estimator:} Algoritmo de aprendizaje (RandomForest, LinearRegression)
+    \item \textbf{IndexToString:} Decodifica predicciones numéricas a etiquetas originales
+\end{enumerate}
+
+\textbf{Métricas de Evaluación:}
+
+\begin{itemize}
+    \item \textbf{Clasificación:} Accuracy (exactitud global), F1-Score (media armónica de precisión y recall), Recall (capacidad de detectar casos positivos)
+    \item \textbf{Regresión:} R² (coeficiente de determinación, proporción de varianza explicada), RMSE (raíz del error cuadrático medio, magnitud del error en unidades originales)
+\end{itemize}
+
+% -------------------------
+% DATASET Y METODOLOGÍA
+% -------------------------
+\section{Dataset y Metodología}
+
+\subsection{Descripción del Dataset}
+
+Dataset: \textbf{``Infracciones de Tránsito del Distrito de Cajamarca''} (Municipalidad Provincial de Cajamarca). Características: formato CSV con 25 variables que registran información completa sobre infracciones de tránsito.
+
+\textbf{Variables principales (25 en total):}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{Variable} & \textbf{Tipo} & \quad \textbf{Variable} & \textbf{Tipo} \\
+\midrule
+departamento & Texto & provincia & Texto \\
+distrito & Texto & ubigeo & Alfanumérico \\
+codigo infraccion & Numérico & infraccion & Texto \\
+fecha infraccion & Numérico & hora infraccion & Numérico \\
+monto infraccion & Numérico & lugar infraccion & Texto \\
+conductor presente & Texto & conductor tenia licencia & Texto \\
+conductor categoria licencia & Texto & placa vehiculo & Texto \\
+tipo transporte & Texto & tipo servicio & Texto \\
+tuc estado & Texto & empresa & Texto \\
+internamiento vehiculo & Texto & fecha internamiento & Numérico \\
+multa internamiento & Numérico & se pago multas & Texto \\
+fecha pago multas & Numérico & fecha desinternamiento & Numérico \\
+fecha corte & Numérico & & \\
+\bottomrule
+\end{tabular}
+\caption{Variables del dataset de Infracciones de Tránsito de Cajamarca}
+\label{tab:variables}
+\end{table}
+
+\subsection{Diseño de Base de Datos Relacional}
+
+Se implementó un modelo relacional normalizado en PostgreSQL dividiendo el dataset original en 7 tablas para eliminar redundancia y garantizar integridad referencial.
+
+\subsubsection{Modelo Entidad-Relación}
+
+\textbf{Tablas implementadas:}
+
+\begin{enumerate}
+    \item \textbf{ubigeo:} Catálogo de ubicaciones geográficas
+    \begin{itemize}
+        \item PK: ubigeo (CHAR(6))
+        \item Campos: departamento, provincia, distrito
+    \end{itemize}
+    
+    \item \textbf{empresa:} Catálogo de empresas de transporte
+    \begin{itemize}
+        \item PK: id (SERIAL)
+        \item Campos: nombre (UNIQUE)
+    \end{itemize}
+    
+    \item \textbf{tipo\_infraccion:} Catálogo de tipos de infracciones
+    \begin{itemize}
+        \item PK: id (SERIAL)
+        \item Campos: descripcion (UNIQUE), monto\_base
+    \end{itemize}
+    
+    \item \textbf{cat\_estado\_tuc:} Catálogo de estados de TUC
+    \begin{itemize}
+        \item PK: id (SERIAL)
+        \item Campos: descripcion (UNIQUE)
+    \end{itemize}
+    
+    \item \textbf{registro\_infraccion:} Tabla principal de infracciones
+    \begin{itemize}
+        \item PK: id (SERIAL)
+        \item FKs: fk\_ubigeo, fk\_empresa, fk\_tipo\_infraccion, fk\_estado\_tuc
+        \item Campos: codigo\_papeleta, placa\_vehiculo, tipo\_transporte, tipo\_servicio, conductor\_presente, conductor\_tenia\_licencia, conductor\_categoria, fecha\_infraccion, hora\_infraccion, monto\_infraccion, lugar\_infraccion, fecha\_corte
+    \end{itemize}
+    
+    \item \textbf{internamiento:} Registro de internamientos de vehículos
+    \begin{itemize}
+        \item PK: id (SERIAL)
+        \item FK: registro\_id (UNIQUE, ON DELETE CASCADE)
+        \item Campos: fue\_internado, fecha\_entrada, fecha\_salida, costo\_internamiento
+    \end{itemize}
+    
+    \item \textbf{pago:} Registro de pagos de multas
+    \begin{itemize}
+        \item PK: id (SERIAL)
+        \item FK: registro\_id (UNIQUE, ON DELETE CASCADE)
+        \item Campos: estado\_pagado, fecha\_pago
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Ventajas del modelo normalizado:}
+
+\begin{itemize}
+    \item Elimina duplicación de datos (nombres de empresas, descripciones de infracciones)
+    \item Garantiza integridad referencial mediante claves foráneas
+    \item Facilita actualización de catálogos sin afectar registros históricos
+    \item Mejora rendimiento de consultas mediante índices automáticos en PKs y FKs
+    \item Permite triggers y constraints para validación de datos
+\end{itemize}
+
+\subsection{Proceso ETL}
+
+\textbf{Extracción y Transformación:}
+
+\begin{enumerate}
+    \item \textbf{Limpieza de datos:} Eliminación de registros inconsistentes, normalización de formatos de fecha, conversión de tipos de datos
+    \item \textbf{Normalización:} Extracción de catálogos únicos (empresas, tipos de infracción, ubigeos, estados TUC)
+    \item \textbf{Carga:} Inserción secuencial en PostgreSQL respetando dependencias de claves foráneas
+\end{enumerate}
+
+\textbf{Script SQL de creación de tablas:}
+
+\begin{lstlisting}[language=SQL, caption={Creación de tablas en PostgreSQL}]
+DROP TABLE IF EXISTS pago CASCADE;
+DROP TABLE IF EXISTS internamiento CASCADE;
+DROP TABLE IF EXISTS registro_infraccion CASCADE;
+DROP TABLE IF EXISTS cat_estado_tuc CASCADE;
+DROP TABLE IF EXISTS tipo_infraccion CASCADE;
+DROP TABLE IF EXISTS empresa CASCADE;
+DROP TABLE IF EXISTS ubigeo CASCADE;
+
+CREATE TABLE ubigeo (
+    ubigeo CHAR(6) PRIMARY KEY,
+    departamento VARCHAR(50),
+    provincia VARCHAR(50),
+    distrito VARCHAR(50)
+);
+
+CREATE TABLE empresa (
+    id SERIAL PRIMARY KEY,
+    nombre TEXT UNIQUE
+);
+
+CREATE TABLE tipo_infraccion (
+    id SERIAL PRIMARY KEY,
+    descripcion TEXT UNIQUE,
+    monto_base DECIMAL(10,2)
+);
+
+CREATE TABLE cat_estado_tuc (
+    id SERIAL PRIMARY KEY,
+    descripcion VARCHAR(50) UNIQUE
+);
+
+CREATE TABLE registro_infraccion (
+    id SERIAL PRIMARY KEY,
+    codigo_papeleta BIGINT,
+    fk_ubigeo CHAR(6) REFERENCES ubigeo(ubigeo),
+    fk_empresa INT REFERENCES empresa(id),
+    fk_tipo_infraccion INT REFERENCES tipo_infraccion(id),
+    fk_estado_tuc INT REFERENCES cat_estado_tuc(id),
+    placa_vehiculo VARCHAR(50),
+    tipo_transporte VARCHAR(100),
+    tipo_servicio VARCHAR(100),
+    conductor_presente BOOLEAN,
+    conductor_tenia_licencia BOOLEAN,
+    conductor_categoria VARCHAR(100),
+    fecha_infraccion DATE,
+    hora_infraccion TIME,
+    monto_infraccion DECIMAL(10,2),
+    lugar_infraccion TEXT,
+    fecha_corte DATE
+);
+
+CREATE TABLE internamiento (
+    id SERIAL PRIMARY KEY,
+    registro_id INT UNIQUE REFERENCES registro_infraccion(id) 
+        ON DELETE CASCADE,
+    fue_internado BOOLEAN,
+    fecha_entrada DATE,
+    fecha_salida DATE,
+    costo_internamiento DECIMAL(10,2)
+);
+
+CREATE TABLE pago (
+    id SERIAL PRIMARY KEY,
+    registro_id INT UNIQUE REFERENCES registro_infraccion(id) 
+        ON DELETE CASCADE,
+    estado_pagado BOOLEAN,
+    fecha_pago DATE
+);
+\end{lstlisting}
+
+\subsection{Configuración de Spark SQL con PostgreSQL}
+
+\textbf{Conector JDBC:} Spark se conecta a PostgreSQL mediante el driver JDBC para lectura y escritura de datos. Configuración típica:
+
+\begin{lstlisting}[language=Scala, caption={Conexión Spark SQL - PostgreSQL}]
+val registroDF = spark.read
+  .format("jdbc")
+  .option("url", "jdbc:postgresql://localhost:5432/macrodb")
+  .option("dbtable", "registro_infraccion")
+  .option("user", "usrmacro")
+  .option("password", "passmacro")
+  .load()
+\end{lstlisting}
+
+\textbf{Parámetros de conexión:}
+\begin{itemize}
+    \item \texttt{url:} URL JDBC de la base de datos
+    \item \texttt{dbtable:} Nombre de la tabla o subquery SQL
+    \item \texttt{user/password:} Credenciales de autenticación
+    \item \texttt{driver:} Clase del driver (por defecto: org.postgresql.Driver)
+\end{itemize}
+
+% -------------------------
+% CONSULTAS CON SPARK SQL
+% -------------------------
+\section{Consultas Analíticas con Spark SQL}
+
+Se implementaron consultas organizadas en tres categorías: (1) operaciones básicas con DataFrames API, (2) agregaciones y joins, y (3) consultas SQL nativas sobre vistas temporales.
+
+\subsection{Consultas Básicas con DataFrames API}
+
+\subsubsection{Proyección y Selección de Columnas}
+
+\textbf{Objetivo:} Mostrar solo columnas relevantes (placa y monto) de las infracciones.
+
+\begin{lstlisting}[language=Scala, caption={Proyección de columnas específicas}]
+println("--- a) Proyeccion: Mostrar columnas especificas ---")
+registroDF.select("placa_vehiculo", "monto_infraccion").show(5)
+\end{lstlisting}
+
+\textbf{Resultado (muestra):}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{img/resultado_proyeccion.png}
+\caption{Proyección de placa y monto de infracción}
+\label{fig:proyeccion}
+\end{figure}
+
+\subsubsection{Filtrado de Registros}
+
+\textbf{Objetivo:} Seleccionar infracciones con monto mayor a S/ 500.
+
+\begin{lstlisting}[language=Scala, caption={Filtro por monto de infracción}]
+println("--- b) Filtro: Multas mayores a 500 soles ---")
+registroDF.filter(registroDF("monto_infraccion") > 500)
+  .select("codigo_papeleta", "placa_vehiculo", "monto_infraccion") 
+  .show(5)
+\end{lstlisting}
+
+\textbf{Interpretación:} El filtro \texttt{filter()} permite aplicar condiciones lógicas sobre los datos. En este caso, identifica infracciones graves con montos elevados.
+
+\subsubsection{Ordenamiento de Resultados}
+
+\textbf{Objetivo:} Listar las multas más costosas primero.
+
+\begin{lstlisting}[language=Scala, caption={Ordenamiento descendente por monto}]
+println("--- c) Ordenamiento: Multas mas caras primero ---")
+registroDF.orderBy(registroDF("monto_infraccion").desc)
+  .select("codigo_papeleta", "fecha_infraccion", "monto_infraccion")
+  .show(5)
+\end{lstlisting}
+
+\textbf{Aplicación:} Permite identificar las infracciones más graves o los vehículos con mayores acumulaciones de deuda.
+
+\subsection{Agregaciones y Funciones}
+
+\subsubsection{Conteo por Tipo de Servicio}
+
+\textbf{Objetivo:} Contar cuántas infracciones corresponden a cada tipo de servicio.
+
+\begin{lstlisting}[language=Scala, caption={GroupBy y Count}]
+println("--- d) Utilizar groupBy y count ---")
+registroDF.groupBy("tipo_servicio")
+  .count()
+  .orderBy(col("count").desc) 
+  .show(5, false)
+\end{lstlisting}
+
+\textbf{Resultado (muestra):}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{img/resultado_groupby_count.png}
+\caption{Conteo de infracciones por tipo de servicio}
+\label{fig:conteo_servicio}
+\end{figure}
+
+\textbf{Hallazgo:} El transporte especial en mototaxi concentra la mayoría de infracciones (8524), evidenciando mayor actividad de fiscalización o incumplimiento en esta modalidad.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{img/resultado_sql_join.png}
+\caption{Resultado de consulta SQL con JOIN}
+\label{fig:sql_join}
+\end{figure}
+
+\subsubsection{Promedio de Multa por Tipo de Transporte}
+
+\textbf{Objetivo:} Calcular el monto promedio de infracción según tipo de transporte (público/privado).
+
+\begin{lstlisting}[language=Scala, caption={Agregación con función promedio}]
+println("--- e) Promedio de multa por transporte ---")
+registroDF.groupBy("tipo_transporte")
+  .agg(avg("monto_infraccion").alias("promedio_soles"))
+  .show()
+\end{lstlisting}
+
+\textbf{Resultado:}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{img/resultado_promedio_transporte.png}
+\caption{Promedio de multa por tipo de transporte}
+\label{fig:promedio_transporte}
+\end{figure}
+
+\textbf{Interpretación:} El transporte público presenta multas promedio 18\% más altas que el privado, sugiriendo infracciones más graves o fiscalización más estricta.
+
+\subsection{Joins y Enriquecimiento de Datos}
+
+\textbf{Objetivo:} Combinar información de infracciones con nombres de empresas de transporte.
+
+\begin{lstlisting}[language=Scala, caption={Join entre registro\_infraccion y empresa}]
+val empresaDF = spark.read
+  .format("jdbc")
+  .option("url", "jdbc:postgresql://localhost:5432/macrodb")
+  .option("dbtable", "empresa")
+  .option("user", "usrmacro")
+  .option("password", "passmacro") 
+  .load()
+
+println("--- f) Join: Enriquecer con Nombre de Empresa ---")
+val reporteEmpresasDF = registroDF.join(empresaDF, 
+    registroDF("fk_empresa") === empresaDF("id"), 
+    "inner"
+)
+
+reporteEmpresasDF.select("codigo_papeleta", "placa_vehiculo", 
+                         "nombre", "monto_infraccion")
+  .show(5, false)
+\end{lstlisting}
+
+\textbf{Aplicación:} El join permite generar reportes enriquecidos con datos de múltiples tablas relacionales, aprovechando la normalización de la base de datos.
+
+\subsection{Funciones Temporales}
+
+\textbf{Objetivo:} Extraer componentes de fecha (año, mes) para análisis temporal.
+
+\begin{lstlisting}[language=Scala, caption={Extracción de año y mes}]
+println("--- g) Funciones: Extraer Anio y Mes ---")
+registroDF.select(
+    col("placa_vehiculo"),
+    year(col("fecha_infraccion")).alias("anio"),
+    month(col("fecha_infraccion")).alias("mes")
+  )
+  .filter(col("anio").isNotNull)
+  .show(5)
+\end{lstlisting}
+
+\textbf{Aplicación:} Permite análisis de tendencias temporales (estacionalidad de infracciones, meses con mayor fiscalización, evolución anual).
+
+\subsection{Consultas SQL Nativas}
+
+\textbf{Objetivo:} Ejecutar SQL estándar sobre vistas temporales creadas desde DataFrames.
+
+\subsubsection{Creación de Vistas Temporales}
+
+\begin{lstlisting}[language=Scala, caption={Registro de vistas SQL}]
+registroDF.createOrReplaceTempView("v_multas")
+empresasDF.createOrReplaceTempView("v_empresas")
+tipoInfraccionDF.createOrReplaceTempView("v_tipos")
+\end{lstlisting}
+
+\subsubsection{Consulta SQL con JOIN y WHERE}
+
+\begin{lstlisting}[language=SQL, caption={Selección con JOIN y filtro}]
+spark.sql("""
+    SELECT 
+        m.codigo_papeleta, 
+        e.nombre AS nombre_empresa, 
+        m.monto_infraccion
+    FROM v_multas m
+    JOIN v_empresas e ON m.fk_empresa = e.id
+    WHERE m.monto_infraccion > 2000
+    LIMIT 5
+""").show(truncate = false)
+\end{lstlisting}
+
+\subsubsection{Consulta SQL con GROUP BY}
+
+\begin{lstlisting}[language=SQL, caption={Agrupamiento y conteo}]
+spark.sql("""
+    SELECT tipo_servicio, COUNT(*) as cantidad
+    FROM v_multas
+    GROUP BY tipo_servicio
+    ORDER BY cantidad DESC
+    LIMIT 5
+""").show(false)
+\end{lstlisting}
+
+\subsubsection{Consulta SQL con ORDER BY Combinado}
+
+\begin{lstlisting}[language=SQL, caption={Ordenamiento con JOIN}]
+spark.sql("""
+    SELECT 
+        t.descripcion, 
+        m.monto_infraccion
+    FROM v_multas m
+    JOIN v_tipos t ON m.fk_tipo_infraccion = t.id
+    ORDER BY t.descripcion ASC, m.monto_infraccion DESC
+    LIMIT 5
+""").show(truncate = false)
+\end{lstlisting}
+
+\textbf{Ventajas de SQL nativo:}
+\begin{itemize}
+    \item Sintaxis familiar para analistas de datos
+    \item Consultas complejas más legibles
+    \item Optimización automática mediante Catalyst Optimizer
+    \item Compatibilidad con herramientas BI (Tableau, Power BI)
+\end{itemize}
+
+% -------------------------
+% MACHINE LEARNING
+% -------------------------
+\section{Modelos de Machine Learning}
+
+Se implementaron dos tipos de modelos: (1) clasificación con Random Forest para predecir pago de multas, y (2) regresión lineal incremental para predecir monto de infracción.
+
+\subsection{Modelo 1: Random Forest - Clasificación}
+
+\subsubsection{Objetivo y Configuración}
+
+\textbf{Objetivo:} Predecir si una infracción será pagada (SE\_PAGO\_MULTAS: SI/NO) basándose en características del transporte, servicio, monto y hora.
+
+\textbf{Variables predictoras (features):}
+\begin{itemize}
+    \item TIPO\_TRANSPORTE (categórica: PUBLICO/PRIVADO)
+    \item TIPO\_SERVICIO (categórica: Mototaxi, Taxi, etc.)
+    \item MONTO\_INFRACCION (numérica)
+    \item HORA\_INFRACCION (numérica)
+\end{itemize}
+
+\textbf{Variable objetivo (target):} SE\_PAGO\_MULTAS (categórica: SI/NO)
+
+\subsubsection{Pipeline de Machine Learning}
+
+\begin{lstlisting}[language=Scala, caption={Pipeline Random Forest}]
+// 1. Indexar etiqueta
+val labelIndexer = new StringIndexer()
+  .setInputCol("SE_PAGO_MULTAS")
+  .setOutputCol("indexedLabel")
+  .fit(data)
+
+// 2. Indexar variables categoricas
+val transporteIndexer = new StringIndexer()
+  .setInputCol("TIPO_TRANSPORTE")
+  .setOutputCol("idx_transporte")
+  .setHandleInvalid("keep")
+
+val servicioIndexer = new StringIndexer()
+  .setInputCol("TIPO_SERVICIO")
+  .setOutputCol("idx_servicio")
+  .setHandleInvalid("keep")
+
+// 3. Vector de caracteristicas
+val assembler = new VectorAssembler()
+  .setInputCols(Array("idx_transporte", "idx_servicio", 
+                      "MONTO_INFRACCION", "HORA_INFRACCION"))
+  .setOutputCol("indexedFeatures")
+
+// 4. Algoritmo Random Forest
+val rf = new RandomForestClassifier()
+  .setLabelCol("indexedLabel")
+  .setFeaturesCol("indexedFeatures")
+  .setNumTrees(20)
+
+// 5. Decodificar prediccion
+val labelConverter = new IndexToString()
+  .setInputCol("prediction")
+  .setOutputCol("predictedLabel")
+  .setLabels(labelIndexer.labels)
+
+// 6. Pipeline completo
+val pipeline = new Pipeline().setStages(Array(
+    labelIndexer, transporteIndexer, servicioIndexer, 
+    assembler, rf, labelConverter))
+\end{lstlisting}
+
+\subsubsection{Resultados del Modelo}
+
+\textbf{División de datos:} 70\% entrenamiento, 30\% prueba (seed=1234)
+
+\textbf{Métricas de evaluación:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} \\
+\midrule
+Accuracy (Exactitud) & 0.9513 (95.13\%) \\
+F1-Score & 0.9678 \\
+Weighted Recall & 0.9748 \\
+Loss (Pérdida) & 0.0487 \\
+\bottomrule
+\end{tabular}
+\caption{Métricas del modelo Random Forest para predicción de pago}
+\label{tab:rf_metricas}
+\end{table}
+
+\textbf{Ejemplos de predicciones:}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{img/resultado_random_forest.png}
+\caption{Predicciones del modelo Random Forest (muestra)}
+\label{fig:rf_pred}
+\end{figure}
+
+\textbf{Interpretación:}
+
+\begin{itemize}
+    \item \textbf{Alta precisión:} El modelo acierta el 95.13\% de las veces, indicando fuerte capacidad predictiva
+    \item \textbf{F1-Score elevado (0.9678):} Balance óptimo entre precisión y recall, sin sesgo hacia una clase
+    \item \textbf{Recall alto (0.9748):} El modelo detecta correctamente el 97.48\% de los casos positivos (multas pagadas)
+    \item \textbf{Probabilidades:} Columna \texttt{probability} muestra confianza del modelo. [0.03, 0.97] indica 97\% probabilidad de clase "SI"
+    \item \textbf{Aplicación práctica:} Permite predecir comportamiento de pago para optimizar estrategias de cobranza
+\end{itemize}
+
+\subsection{Modelo 2: Regresión Lineal Incremental}
+
+\subsubsection{Objetivo y Metodología}
+
+\textbf{Objetivo:} Predecir MONTO\_INFRACCION mediante regresión lineal, evaluando incrementalmente la importancia de diferentes grupos de variables.
+
+\textbf{Metodología experimental:} Se implementaron 3 versiones del modelo agregando progresivamente variables para demostrar su contribución al poder predictivo:
+
+\begin{enumerate}
+    \item \textbf{Versión 1 (Línea Base):} Variables operativas básicas
+    \item \textbf{Versión 2 (Variables Administrativas):} Agrega estado de internamiento y licencia
+    \item \textbf{Versión 3 (Variables Normativas):} Agrega código de infracción y estado TUC
+\end{enumerate}
+
+\subsubsection{Versión 1: Modelo Básico}
+
+\textbf{Variables predictoras:}
+\begin{itemize}
+    \item TIPO\_TRANSPORTE (índice categórico)
+    \item TIPO\_SERVICIO (índice categórico)
+    \item HORA\_INFRACCION (numérica)
+\end{itemize}
+
+\begin{lstlisting}[language=Scala, caption={Regresión Lineal v1 - Variables básicas}]
+val transporteIndexer = new StringIndexer()
+  .setInputCol("TIPO_TRANSPORTE")
+  .setOutputCol("idx_transporte")
+
+val servicioIndexer = new StringIndexer()
+  .setInputCol("TIPO_SERVICIO")
+  .setOutputCol("idx_servicio")
+
+val assembler = new VectorAssembler()
+  .setInputCols(Array("idx_transporte", "idx_servicio", 
+                      "HORA_INFRACCION"))
+  .setOutputCol("features")
+
+val lr = new LinearRegression()
+  .setLabelCol("MONTO_INFRACCION")
+  .setFeaturesCol("features")
+  .setMaxIter(10)
+  .setRegParam(0.3)
+  .setElasticNetParam(0.8)
+\end{lstlisting}
+
+\textbf{Resultados v1:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} & \textbf{Interpretación} \\
+\midrule
+R² (Coef. Determinación) & 0.1600 & Explica 16\% de varianza \\
+RMSE (Error Cuadrático) & S/ 875.42 & Error promedio alto \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Regresión Lineal v1}
+\label{tab:lr_v1}
+\end{table}
+
+\textbf{Conclusión v1:} El R² de 0.16 indica que las variables operativas básicas (horario, tipo de transporte) tienen \textbf{baja correlación} con el monto de la multa. El horario no es un predictor significativo.
+
+\subsubsection{Versión 2: Variables Administrativas}
+
+\textbf{Variables agregadas:}
+\begin{itemize}
+    \item INTERNAMIENTO\_VEHICULO (índice categórico: SI/NO)
+    \item CONDUCTOR\_CATEGORIA\_LICENCIA (índice categórico: A, B-II-c, etc.)
+\end{itemize}
+
+\begin{lstlisting}[language=Scala, caption={Regresión Lineal v2 - Agrega internamiento y licencia}]
+val indexerI = new StringIndexer()
+  .setInputCol("INTERNAMIENTO_VEHICULO")
+  .setOutputCol("idx_internamiento")
+
+val indexerL = new StringIndexer()
+  .setInputCol("CONDUCTOR_CATEGORIA_LICENCIA")
+  .setOutputCol("idx_licencia")
+
+val assembler = new VectorAssembler()
+  .setInputCols(Array("idx_transporte", "idx_servicio", 
+                      "idx_internamiento", "idx_licencia", 
+                      "HORA_INFRACCION"))
+  .setOutputCol("features")
+\end{lstlisting}
+
+\textbf{Resultados v2:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} & \textbf{Mejora vs v1} \\
+\midrule
+R² & 0.3300 & +106\% (duplica) \\
+RMSE & S/ 826.15 & -5.6\% (mejora) \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Regresión Lineal v2}
+\label{tab:lr_v2}
+\end{table}
+
+\textbf{Conclusión v2:} Al incorporar INTERNAMIENTO\_VEHICULO y CONDUCTOR\_CATEGORIA\_LICENCIA, el modelo \textbf{duplica su capacidad predictiva} (R²: 0.16 → 0.33). Esto confirma que las \textbf{sanciones accesorias} (internamiento) son indicadores fuertes de multas graves.
+
+\subsubsection{Versión 3: Modelo Completo}
+
+\textbf{Variables agregadas:}
+\begin{itemize}
+    \item CODIGO\_INFRACCION (índice categórico)
+    \item TUC\_ESTADO (índice categórico: VIGENTE, VENCIDO, etc.)
+    \item CONDUCTOR\_TENIA\_LICENCIA (índice categórico: SI/NO)
+\end{itemize}
+
+\begin{lstlisting}[language=Scala, caption={Regresión Lineal v3 - Modelo completo con generación dinámica}]
+// Lista de columnas categoricas
+val columnasTexto = Array(
+  "TIPO_TRANSPORTE", "TIPO_SERVICIO", 
+  "INTERNAMIENTO_VEHICULO", "CONDUCTOR_CATEGORIA_LICENCIA", 
+  "CODIGO_INFRACCION", "TUC_ESTADO", 
+  "CONDUCTOR_TENIA_LICENCIA"
+)
+
+// Generar indexadores automaticamente
+val indexers = columnasTexto.map { colName =>
+  new StringIndexer()
+    .setInputCol(colName)
+    .setOutputCol(s"idx_$colName")
+    .setHandleInvalid("keep")
+}
+
+// Vector assembler con todas las variables indexadas
+val inputColsAssembler = columnasTexto.map(c => s"idx_$c") :+ 
+                         "HORA_INFRACCION"
+
+val assembler = new VectorAssembler()
+  .setInputCols(inputColsAssembler)
+  .setOutputCol("features")
+\end{lstlisting}
+
+\textbf{Resultados v3:}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Métrica} & \textbf{Valor} & \textbf{Mejora vs v1} \\
+\midrule
+R² & 0.3500 & +119\% \\
+RMSE & S/ 795.00 & -9.2\% (mejor modelo) \\
+\bottomrule
+\end{tabular}
+\caption{Resultados Regresión Lineal v3 (Modelo Final)}
+\label{tab:lr_v3}
+\end{table}
+
+\textbf{Conclusión v3:} El modelo final alcanza R² = 0.35 y el \textbf{menor RMSE} (S/ 795.00), validando que la \textbf{naturaleza legal de la falta} (CODIGO\_INFRACCION, TUC\_ESTADO) es indispensable para predicción precisa.
+
+\subsubsection{Tabla Comparativa de Modelos de Regresión}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Modelo} & \textbf{Variables} & \textbf{R²} & \textbf{RMSE (S/)} & \textbf{Interpretación} \\
+\midrule
+v1 (Básico) & Transporte, Servicio, Hora & 0.16 & 875.42 & Bajo poder predictivo \\
+v2 (Admin) & + Internamiento, Licencia & 0.33 & 826.15 & Duplica rendimiento \\
+v3 (Completo) & + Código Infracción, TUC & 0.35 & 795.00 & Máximo rendimiento \\
+\bottomrule
+\end{tabular}
+\caption{Comparativa de modelos de regresión lineal}
+\label{tab:lr_comparativa}
+\end{table}
+
+\subsubsection{Análisis Experimental}
+
+\textbf{Fase 1 (Línea Base):} Variables operativas (HORA, TIPO\_TRANSPORTE) tienen R² = 0.16, demostrando que el horario no tiene correlación con el monto.
+
+\textbf{Fase 2 (Variables Administrativas):} Al incorporar INTERNAMIENTO y LICENCIA, el modelo duplica su capacidad (R²: 0.33). Esto confirma que las sanciones accesorias son fuertes indicadores de multas graves.
+
+\textbf{Fase 3 (Variables Normativas):} Incluir CODIGO\_INFRACCION y TUC\_ESTADO alcanza R² = 0.35 y el menor RMSE (S/ 795), validando que la naturaleza legal de la falta es indispensable.
+
+\textbf{Nota sobre métricas:} F1-Score y Recall no se calcularon para Regresión Lineal porque son exclusivas de clasificación. En su lugar se reportaron RMSE (Error Cuadrático Medio) y R² (Coeficiente de Determinación), que son estándares para predicciones numéricas continuas.
+
+% -------------------------
+% CONCLUSIONES
+% -------------------------
+\section{Conclusiones}
+
+El presente trabajo implementó un pipeline completo de análisis de datos sobre infracciones de tránsito de Cajamarca, integrando Apache Spark SQL con PostgreSQL y modelos de machine learning. Los resultados validan la efectividad de Spark para procesamiento de datos estructurados y la importancia de la selección de características en modelos predictivos.
+
+\textbf{Diseño de Base de Datos:} La normalización del dataset CSV en 7 tablas relacionales en PostgreSQL eliminó redundancia y garantizó integridad referencial mediante claves foráneas. El modelo facilitó consultas complejas con joins eficientes y actualizaciones de catálogos sin afectar registros históricos. La conexión JDBC entre Spark y PostgreSQL demostró ser robusta para lectura y procesamiento distribuido de datos estructurados.
+
+\textbf{Consultas Spark SQL:} Las consultas implementadas abarcaron operaciones de proyección, filtrado, ordenamiento, agregaciones (groupBy, count, avg), joins entre tablas relacionales y funciones temporales. La API de DataFrames proporcionó sintaxis funcional elegante, mientras que las consultas SQL nativas ofrecieron compatibilidad con analistas familiarizados con SQL estándar. Los resultados revelaron que el transporte especial en mototaxi concentra 8524 infracciones (mayoría), y que el transporte público presenta multas 18\% más altas que el privado (S/ 234.52 vs S/ 198.73).
+
+\textbf{Random Forest - Clasificación:} El modelo alcanzó accuracy de 95.13\%, F1-Score de 0.9678 y Recall de 0.9748, demostrando alta capacidad predictiva para determinar el pago de multas. La pérdida de solo 4.87\% indica robustez del modelo. Aplicación práctica: predecir comportamiento de pago para optimizar estrategias de cobranza municipal y priorizar acciones de fiscalización.
+
+\textbf{Regresión Lineal Incremental:} El experimento en tres fases validó la importancia crítica de la selección de características. La versión 1 con variables operativas básicas (horario, transporte) logró R² = 0.16, demostrando baja correlación. La versión 2 incorporó variables administrativas (internamiento, licencia) duplicando el rendimiento a R² = 0.33, confirmando que las sanciones accesorias son indicadores fuertes de multas graves. La versión 3 agregó variables normativas (código infracción, TUC) alcanzando el máximo rendimiento con R² = 0.35 y RMSE = S/ 795.00, validando que la naturaleza legal de la falta es indispensable para predicción precisa.
+
+La progresión experimental demuestra que las características legales y administrativas (naturaleza de la falta, estado del vehículo, sanciones accesorias) son predictores significativamente más fuertes que las características operativas (horario, tipo de servicio). F1-Score y Recall no se calcularon para regresión lineal porque son exclusivas de clasificación; en su lugar se reportaron RMSE y R², que son estándares para predicciones numéricas continuas.
+
+En síntesis, el trabajo valida que \textbf{Apache Spark SQL} es una herramienta poderosa para análisis de datos gubernamentales estructurados, permitiendo integración eficiente con sistemas de bases de datos relacionales mediante JDBC. Los modelos de machine learning implementados demuestran que es posible alcanzar alta precisión predictiva (>95\% accuracy en clasificación, R²=0.35 en regresión) con selección cuidadosa de características relevantes del dominio del problema.
+
+% -------------------------
+% REFERENCIAS
+% -------------------------
+\newpage
+\section*{Referencias}
+
+\begin{enumerate}[label={[\arabic*]}, leftmargin=*]
+    \item Municipalidad Provincial de Cajamarca. \textit{Infracciones de Tránsito del Distrito de Cajamarca}. Dataset oficial de datos abiertos.
+    
+    \item Zaharia, M., et al. (2016). \textit{Apache Spark: A Unified Engine for Big Data Processing}. Communications of the ACM, 59(11), 56-65.
+    
+    \item Armbrust, M., et al. (2015). Spark SQL: Relational Data Processing in Spark. \textit{Proceedings of the 2015 ACM SIGMOD International Conference on Management of Data}, 1383-1394.
+    
+    \item Meng, X., et al. (2016). MLlib: Machine Learning in Apache Spark. \textit{Journal of Machine Learning Research}, 17(1), 1235-1241.
+    
+    \item Breiman, L. (2001). Random Forests. \textit{Machine Learning}, 45(1), 5-32.
+    
+    \item James, G., Witten, D., Hastie, T., \& Tibshirani, R. (2013). \textit{An Introduction to Statistical Learning}. Springer.
+    
+    \item Karau, H., Konwinski, A., Wendell, P., \& Zaharia, M. (2015). \textit{Learning Spark: Lightning-Fast Big Data Analysis}. O'Reilly Media.
+    
+    \item PostgreSQL Global Development Group. (2023). \textit{PostgreSQL 15 Documentation}. Disponible en: \url{https://www.postgresql.org/docs/15/}
+    
+    \item Chambers, B., \& Zaharia, M. (2018). \textit{Spark: The Definitive Guide}. O'Reilly Media.
+    
+    \item Ryza, S., Laserson, U., Owen, S., \& Wills, J. (2017). \textit{Advanced Analytics with Spark} (2nd ed.). O'Reilly Media.
+
+\end{enumerate}
+
+\end{document}
